@@ -30,6 +30,6 @@ jobs:
         with:
           args: >
             -Dsonar.projectKey=AutoTriage
-            -Dsonar.sources=${{ github.event.inputs.subfolder }}
-            -Dsonar.projectBaseDir=${{ github.event.inputs.subfolder }}
+            -Dsonar.sources=.
+            -Dsonar.inclusions=${{ github.event.inputs.subfolder }}/**/*
             -Dsonar.scm.provider=git

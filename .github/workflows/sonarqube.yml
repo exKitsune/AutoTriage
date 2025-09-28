@@ -22,6 +22,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Validate Subfolder
+        run: |
+          if [ ! -d "${{ github.event.inputs.subfolder }}" ]; then
+            echo "Error: Subfolder '${{ github.event.inputs.subfolder }}' does not exist in the repository"
+            exit 1
+          fi
+
+          # Count files in subfolder to ensure it's not empty
+          file_count=$(find "${{ github.event.inputs.subfolder }}" -type f | wc -l)
+          if [ "$file_count" -eq 0 ]; then
+            echo "Error: Subfolder '${{ github.event.inputs.subfolder }}' exists but contains no files"
+            exit 1
+          fi
+
+          echo "Found $file_count files in ${{ github.event.inputs.subfolder }}"
+
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@v6.0.0
         env:

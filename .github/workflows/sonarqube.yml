@@ -33,3 +33,49 @@ jobs:
             -Dsonar.sources=.
             -Dsonar.inclusions=${{ github.event.inputs.subfolder }}/**/*
             -Dsonar.scm.provider=git
+
+      - name: Wait for Analysis and Generate Report
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          # Wait for analysis to complete (check every 10 seconds, timeout after 5 minutes)
+          for i in {1..30}; do
+            status=$(curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=AutoTriage" | jq -r '.projectStatus.status')
+            
+            if [ "$status" != "null" ]; then
+              echo "Analysis completed with status: $status"
+              break
+            fi
+            
+            if [ $i -eq 30 ]; then
+              echo "Timeout waiting for analysis to complete"
+              exit 1
+            fi
+            
+            echo "Waiting for analysis to complete... (attempt $i/30)"
+            sleep 10
+          done
+
+          # Get analysis results
+          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/issues/search?componentKeys=AutoTriage&types=BUG,VULNERABILITY,CODE_SMELL" > sonar-issues.json
+          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/measures/component?component=AutoTriage&metricKeys=bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density" > sonar-metrics.json
+
+          # Create human-readable report
+          echo "SonarQube Analysis Report for ${{ github.event.inputs.subfolder }}" > sonar-analysis-report.md
+          echo "Generated on $(date)" >> sonar-analysis-report.md
+          echo "---" >> sonar-analysis-report.md
+          echo "## Quality Gate Status: $status" >> sonar-analysis-report.md
+          echo "## Issues" >> sonar-analysis-report.md
+          jq -r '.issues[] | "* " + .severity + ": " + .message + " (" + .component + ":" + (.line|tostring) + ")"' sonar-issues.json >> sonar-analysis-report.md || echo "No issues found" >> sonar-analysis-report.md
+          echo "## Metrics" >> sonar-analysis-report.md
+          jq -r '.component.measures[] | .metric + ": " + .value' sonar-metrics.json >> sonar-analysis-report.md || echo "No metrics available" >> sonar-analysis-report.md
+
+      - name: Upload Analysis Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: sonarqube-analysis-${{ github.event.inputs.subfolder }}
+          path: |
+            sonar-issues.json
+            sonar-metrics.json
+            sonar-analysis-report.md

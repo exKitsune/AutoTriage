@@ -89,7 +89,7 @@ jobs:
           jq -r '.component.measures[] | .metric + ": " + .value' sonar-metrics.json >> sonar-analysis-report.md || echo "No metrics available" >> sonar-analysis-report.md
 
       - name: Upload Analysis Reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sonarqube-analysis-${{ github.event.inputs.subfolder }}
           path: |

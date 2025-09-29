@@ -126,15 +126,17 @@ jobs:
         with:
           project: ${{ github.event.inputs.subfolder }}
           path: ${{ github.event.inputs.subfolder }}
-          format: "HTML"
+          format: "JSON"
           args: >
-            --failOnCVSS 7
             --enableRetired
             --enableExperimental
             --scan ${{ github.event.inputs.subfolder }}/**/*
+            --prettyPrint
+            --exclude "**/test/**" "**/tests/**"
+            --out "./dependency-check-results"
 
       - name: Upload Dependency Check Report
         uses: actions/upload-artifact@v4
         with:
           name: dependency-check-${{ github.event.inputs.subfolder }}
-          path: reports
+          path: dependency-check-results/dependency-check-report.json

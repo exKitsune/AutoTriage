@@ -140,3 +140,25 @@ jobs:
         with:
           name: dependency-check-${{ github.event.inputs.subfolder }}
           path: dependency-check-results/dependency-check-report.json
+
+  generate-sbom:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate CycloneDX SBOM
+        uses: CycloneDX/gh-node-module-generatebom@v1
+        with:
+          path: ${{ github.event.inputs.subfolder }}
+          output: ${{ github.event.inputs.subfolder }}-sbom.json
+          json: true
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.event.inputs.subfolder }}
+          path: ${{ github.event.inputs.subfolder }}-sbom.json

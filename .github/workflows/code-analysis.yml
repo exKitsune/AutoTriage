@@ -1,4 +1,4 @@
-name: SonarQube Analysis
+name: Code Analysis
 
 on:
   # pull_request:
@@ -11,12 +11,10 @@ on:
         type: string
 
 jobs:
-  scan_code:
+  validate:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      security-events: write
+    outputs:
+      file_count: ${{ steps.validation.outputs.file_count }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -24,6 +22,7 @@ jobs:
           fetch-depth: 0
 
       - name: Validate Subfolder
+        id: validation
         run: |
           if [ ! -d "${{ github.event.inputs.subfolder }}" ]; then
             echo "Error: Subfolder '${{ github.event.inputs.subfolder }}' does not exist in the repository"
@@ -37,7 +36,21 @@ jobs:
             exit 1
           fi
 
+          echo "file_count=$file_count" >> "$GITHUB_OUTPUT"
           echo "Found $file_count files in ${{ github.event.inputs.subfolder }}"
+
+  sonarqube:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@v6.0.0
@@ -88,7 +101,7 @@ jobs:
           echo "## Metrics" >> sonar-analysis-report.md
           jq -r '.component.measures[] | .metric + ": " + .value' sonar-metrics.json >> sonar-analysis-report.md || echo "No metrics available" >> sonar-analysis-report.md
 
-      - name: Upload Analysis Reports
+      - name: Upload SonarQube Reports
         uses: actions/upload-artifact@v4
         with:
           name: sonarqube-analysis-${{ github.event.inputs.subfolder }}
@@ -96,3 +109,32 @@ jobs:
             sonar-issues.json
             sonar-metrics.json
             sonar-analysis-report.md
+
+  dependency-check:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        env:
+          JAVA_HOME: /opt/jdk
+        with:
+          project: ${{ github.event.inputs.subfolder }}
+          path: ${{ github.event.inputs.subfolder }}
+          format: "HTML"
+          args: >
+            --failOnCVSS 7
+            --enableRetired
+            --enableExperimental
+            --scan ${{ github.event.inputs.subfolder }}/**/*
+
+      - name: Upload Dependency Check Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-${{ github.event.inputs.subfolder }}
+          path: reports

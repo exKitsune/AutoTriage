@@ -127,20 +127,20 @@ jobs:
           project: ${{ github.event.inputs.subfolder }}
           path: ${{ github.event.inputs.subfolder }}
           format: "JSON"
+          out: "reports"
           args: >
             --enableRetired
             --enableExperimental
             --scan ${{ github.event.inputs.subfolder }}/**/*
             --prettyPrint
             --exclude "**/test/**" "**/tests/**"
-            --out "."
-            --log "./dependency-check.log"
+            --log "reports/dependency-check.log"
 
       - name: Upload Dependency Check Report
         uses: actions/upload-artifact@v4
         with:
           name: dependency-check-${{ github.event.inputs.subfolder }}
-          path: dependency-check-report.json
+          path: reports/dependency-check-report.json
 
   generate-sbom:
     needs: validate

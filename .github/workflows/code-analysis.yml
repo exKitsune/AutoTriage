@@ -133,13 +133,14 @@ jobs:
             --scan ${{ github.event.inputs.subfolder }}/**/*
             --prettyPrint
             --exclude "**/test/**" "**/tests/**"
-            --out "./dependency-check-results"
+            --out "."
+            --log "./dependency-check.log"
 
       - name: Upload Dependency Check Report
         uses: actions/upload-artifact@v4
         with:
           name: dependency-check-${{ github.event.inputs.subfolder }}
-          path: dependency-check-results/dependency-check-report.json
+          path: dependency-check-report.json
 
   generate-sbom:
     needs: validate
@@ -155,10 +156,56 @@ jobs:
         with:
           path: ${{ github.event.inputs.subfolder }}
           output: ${{ github.event.inputs.subfolder }}-sbom.json
-          json: true
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
         with:
           name: sbom-${{ github.event.inputs.subfolder }}
           path: ${{ github.event.inputs.subfolder }}-sbom.json
+
+  # aggregate-analysis:
+  #   needs: [sonarqube, dependency-check, generate-sbom]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout repo
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.x"
+
+  #     - name: Install dependencies
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install setuptools requests
+
+  #     - name: Download SonarQube Analysis
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: sonarqube-analysis-${{ github.event.inputs.subfolder }}
+  #         path: analysis-inputs/sonarqube
+
+  #     - name: Download Dependency Check Results
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: dependency-check-${{ github.event.inputs.subfolder }}
+  #         path: analysis-inputs/dependency-check
+
+  #     - name: Download SBOM
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: sbom-${{ github.event.inputs.subfolder }}
+  #         path: analysis-inputs/sbom
+
+  #     - name: Run Analysis Aggregation
+  #       id: analyze
+  #       run: python scripts/analyze_dependencies.py ${{ github.event.inputs.subfolder }}
+
+  #     - name: Upload Aggregated Analysis
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: aggregated-analysis-${{ github.event.inputs.subfolder }}
+  #         path: analysis-outputs/

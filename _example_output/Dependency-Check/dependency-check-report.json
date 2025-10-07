@@ -1,0 +1,279 @@
+{
+  "reportSchema" : "1.1",
+  "scanInfo" : {
+    "engineVersion" : "12.1.6",
+    "dataSource" : [ {
+      "name" : "NVD API Last Checked",
+      "timestamp" : "2025-10-06T11:36:24Z"
+    }, {
+      "name" : "NVD API Last Modified",
+      "timestamp" : "2025-10-06T11:15:33Z"
+    }, {
+      "name" : "NVD Cache Last Checked",
+      "timestamp" : "2025-10-06T11:36:24Z"
+    }, {
+      "name" : "NVD Cache Last Modified",
+      "timestamp" : "2025-10-06T11:15:33Z"
+    } ]
+  },
+  "projectInfo" : {
+    "name" : "container_security",
+    "reportDate" : "2025-10-07T03:17:42.781607352Z",
+    "credits" : {
+      "NVD" : "This product uses the NVD API but is not endorsed or certified by the NVD. This report contains data retrieved from the National Vulnerability Database: https://nvd.nist.gov",
+      "CISA" : "This report may contain data retrieved from the CISA Known Exploited Vulnerability Catalog: https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+      "NPM" : "This report may contain data retrieved from the Github Advisory Database (via NPM Audit API): https://github.com/advisories/",
+      "RETIREJS" : "This report may contain data retrieved from the RetireJS community: https://retirejs.github.io/retire.js/",
+      "OSSINDEX" : "This report may contain data retrieved from the Sonatype OSS Index: https://ossindex.sonatype.org"
+    }
+  },
+  "dependencies" : [ {
+    "isVirtual" : true,
+    "fileName" : "PyYAML:5.3.1",
+    "filePath" : "/github/workspace/container_security/requirements.txt:PyYAML/5.3.1",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "PyYAML"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "PyYAML"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "5.3.1"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/pyyaml@5.3.1",
+      "confidence" : "HIGHEST"
+    } ],
+    "vulnerabilityIds" : [ {
+      "id" : "cpe:2.3:a:pyyaml:pyyaml:5.3.1:*:*:*:*:*:*:*",
+      "confidence" : "LOW"
+    } ],
+    "vulnerabilities" : [ {
+      "source" : "NVD",
+      "name" : "CVE-2020-14343",
+      "severity" : "CRITICAL",
+      "cvssv2" : {
+        "score" : 10.0,
+        "accessVector" : "NETWORK",
+        "accessComplexity" : "LOW",
+        "authenticationr" : "NONE",
+        "confidentialityImpact" : "COMPLETE",
+        "integrityImpact" : "COMPLETE",
+        "availabilityImpact" : "COMPLETE",
+        "severity" : "HIGH",
+        "version" : "2.0",
+        "exploitabilityScore" : "10.0",
+        "impactScore" : "10.0"
+      },
+      "cvssv3" : {
+        "baseScore" : 9.8,
+        "attackVector" : "NETWORK",
+        "attackComplexity" : "LOW",
+        "privilegesRequired" : "NONE",
+        "userInteraction" : "NONE",
+        "scope" : "UNCHANGED",
+        "confidentialityImpact" : "HIGH",
+        "integrityImpact" : "HIGH",
+        "availabilityImpact" : "HIGH",
+        "baseSeverity" : "CRITICAL",
+        "exploitabilityScore" : "3.9",
+        "impactScore" : "5.9",
+        "version" : "3.1"
+      },
+      "cwes" : [ "CWE-20" ],
+      "description" : "A vulnerability was discovered in the PyYAML library in versions before 5.4, where it is susceptible to arbitrary code execution when it processes untrusted YAML files through the full_load method or with the FullLoader loader. Applications that use the library to process untrusted input may be vulnerable to this flaw. This flaw allows an attacker to execute arbitrary code on the system by abusing the python/object/new constructor. This flaw is due to an incomplete fix for CVE-2020-1747.",
+      "notes" : "",
+      "references" : [ {
+        "source" : "af854a3a-2127-422b-91ae-364da2661108",
+        "url" : "https://github.com/SeldonIO/seldon-core/issues/2252"
+      }, {
+        "source" : "af854a3a-2127-422b-91ae-364da2661108",
+        "url" : "https://bugzilla.redhat.com/show_bug.cgi?id=1860466",
+        "name" : "ISSUE_TRACKING,THIRD_PARTY_ADVISORY"
+      }, {
+        "source" : "af854a3a-2127-422b-91ae-364da2661108",
+        "url" : "https://www.oracle.com/security-alerts/cpuapr2022.html",
+        "name" : "PATCH,THIRD_PARTY_ADVISORY"
+      }, {
+        "source" : "af854a3a-2127-422b-91ae-364da2661108",
+        "url" : "https://www.oracle.com/security-alerts/cpujul2022.html",
+        "name" : "PATCH,THIRD_PARTY_ADVISORY"
+      }, {
+        "source" : "secalert@redhat.com",
+        "url" : "https://bugzilla.redhat.com/show_bug.cgi?id=1860466",
+        "name" : "ISSUE_TRACKING,THIRD_PARTY_ADVISORY"
+      }, {
+        "source" : "secalert@redhat.com",
+        "url" : "https://github.com/yaml/pyyaml/issues/420"
+      }, {
+        "source" : "secalert@redhat.com",
+        "url" : "https://www.oracle.com/security-alerts/cpujul2022.html",
+        "name" : "PATCH,THIRD_PARTY_ADVISORY"
+      }, {
+        "source" : "secalert@redhat.com",
+        "url" : "https://www.oracle.com/security-alerts/cpuapr2022.html",
+        "name" : "PATCH,THIRD_PARTY_ADVISORY"
+      }, {
+        "source" : "af854a3a-2127-422b-91ae-364da2661108",
+        "url" : "https://github.com/yaml/pyyaml/issues/420"
+      }, {
+        "source" : "secalert@redhat.com",
+        "url" : "https://github.com/SeldonIO/seldon-core/issues/2252"
+      } ],
+      "vulnerableSoftware" : [ {
+        "software" : {
+          "id" : "cpe:2.3:a:oracle:communications_cloud_native_core_network_function_cloud_native_environment:1.10.0:*:*:*:*:*:*:*"
+        }
+      }, {
+        "software" : {
+          "id" : "cpe:2.3:a:oracle:communications_cloud_native_core_network_function_cloud_native_environment:22.1.0:*:*:*:*:*:*:*"
+        }
+      }, {
+        "software" : {
+          "id" : "cpe:2.3:a:pyyaml:pyyaml:*:*:*:*:*:*:*:*",
+          "vulnerabilityIdMatched" : "true",
+          "versionStartIncluding" : "5.1",
+          "versionEndExcluding" : "5.4"
+        }
+      } ]
+    } ]
+  }, {
+    "isVirtual" : true,
+    "fileName" : "cryptography:3.3.2",
+    "filePath" : "/github/workspace/container_security/requirements.txt:cryptography/3.3.2",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "cryptography"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "cryptography"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "3.3.2"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/cryptography@3.3.2",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : true,
+    "fileName" : "flask:2.0.1",
+    "filePath" : "/github/workspace/container_security/requirements.txt:flask/2.0.1",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "flask"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "flask"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "2.0.1"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/flask@2.0.1",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : true,
+    "fileName" : "requests:2.25.1",
+    "filePath" : "/github/workspace/container_security/requirements.txt:requests/2.25.1",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "requests"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "requests"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "2.25.1"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/requests@2.25.1",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : true,
+    "fileName" : "werkzeug:2.0.1",
+    "filePath" : "/github/workspace/container_security/requirements.txt:werkzeug/2.0.1",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "werkzeug"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "werkzeug"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "2.0.1"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/werkzeug@2.0.1",
+      "confidence" : "HIGHEST"
+    } ]
+  } ]
+}

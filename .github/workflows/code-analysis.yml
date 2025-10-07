@@ -104,7 +104,7 @@ jobs:
       - name: Upload SonarQube Reports
         uses: actions/upload-artifact@v4
         with:
-          name: sonarqube-analysis-${{ github.event.inputs.subfolder }}
+          name: sonarqube-analysis
           path: |
             sonar-issues.json
             sonar-metrics.json
@@ -139,7 +139,7 @@ jobs:
       - name: Upload Dependency Check Report
         uses: actions/upload-artifact@v4
         with:
-          name: dependency-check-${{ github.event.inputs.subfolder }}
+          name: dependency-check
           path: reports/dependency-check-report.json
 
   generate-sbom:
@@ -155,57 +155,57 @@ jobs:
         uses: CycloneDX/gh-node-module-generatebom@v1
         with:
           path: ${{ github.event.inputs.subfolder }}
-          output: ${{ github.event.inputs.subfolder }}-sbom.json
+          output: sbom.json
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
         with:
-          name: sbom-${{ github.event.inputs.subfolder }}
-          path: ${{ github.event.inputs.subfolder }}-sbom.json
+          name: sbom
+          path: sbom.json
 
-  # aggregate-analysis:
-  #   needs: [sonarqube, dependency-check, generate-sbom]
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout repo
-  #       uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0
+  aggregate-analysis:
+    needs: [sonarqube, dependency-check, generate-sbom]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  #     - name: Set up Python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: "3.x"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
 
-  #     - name: Install dependencies
-  #       run: |
-  #         python -m pip install --upgrade pip
-  #         pip install setuptools requests
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install setuptools requests
 
-  #     - name: Download SonarQube Analysis
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: sonarqube-analysis-${{ github.event.inputs.subfolder }}
-  #         path: analysis-inputs/sonarqube
+      - name: Download SonarQube Analysis
+        uses: actions/download-artifact@v4
+        with:
+          name: sonarqube-analysis
+          path: analysis-inputs/sonarqube
 
-  #     - name: Download Dependency Check Results
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: dependency-check-${{ github.event.inputs.subfolder }}
-  #         path: analysis-inputs/dependency-check
+      - name: Download Dependency Check Results
+        uses: actions/download-artifact@v4
+        with:
+          name: dependency-check
+          path: analysis-inputs/dependency-check
 
-  #     - name: Download SBOM
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: sbom-${{ github.event.inputs.subfolder }}
-  #         path: analysis-inputs/sbom
+      - name: Download SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom
+          path: analysis-inputs/sbom
 
-  #     - name: Run Analysis Aggregation
-  #       id: analyze
-  #       run: python scripts/analyze_dependencies.py ${{ github.event.inputs.subfolder }}
+      - name: Run Analysis Aggregation
+        id: analyze
+        run: python scripts/analyze_dependencies.py ${{ github.event.inputs.subfolder }}
 
-  #     - name: Upload Aggregated Analysis
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: aggregated-analysis-${{ github.event.inputs.subfolder }}
-  #         path: analysis-outputs/
+      - name: Upload Aggregated Analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: aggregated-analysis
+          path: analysis-outputs/

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import time
 from typing import Dict, Any, Optional
 from openai import OpenAI
 
@@ -21,6 +22,7 @@ def query_model(
 ) -> str:
     """
     Send a single prompt to the AI model and get the response.
+    Includes retry logic for transient failures.
     
     Args:
         client: OpenAI client instance
@@ -31,6 +33,10 @@ def query_model(
     
     Returns:
         The model's response text
+    
+    Raises:
+        ValueError: If no model is specified
+        RuntimeError: If all retry attempts fail
     """
     if config is None:
         config = {}
@@ -46,12 +52,42 @@ def query_model(
     if not model_name:
         raise ValueError("No model specified and no default model in config")
     
-    try:
-        completion = client.chat.completions.create(
-            model=model_name,
-            messages=messages
-        )
-        return completion.choices[0].message.content
-        
-    except Exception as e:
-        raise RuntimeError(f"AI query failed: {str(e)}")
+    # Get retry settings from config
+    max_retries = config.get("analysis", {}).get("max_retries", 3)
+    timeout = config.get("analysis", {}).get("timeout_seconds", 300)
+    
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            completion = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                timeout=timeout
+            )
+            
+            if not completion.choices:
+                raise RuntimeError("AI returned empty response")
+            
+            response = completion.choices[0].message.content
+            if not response:
+                raise RuntimeError("AI returned None response")
+                
+            return response
+            
+        except Exception as e:
+            last_error = e
+            error_msg = str(e).lower()
+            
+            # Don't retry on certain errors
+            if "invalid" in error_msg or "authentication" in error_msg or "api_key" in error_msg:
+                raise RuntimeError(f"AI query failed (non-retryable): {str(e)}")
+            
+            # For retryable errors, wait before retrying
+            if attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 2  # Exponential backoff: 2s, 4s, 6s
+                print(f"AI query attempt {attempt + 1} failed: {str(e)}")
+                print(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                # Last attempt failed
+                raise RuntimeError(f"AI query failed after {max_retries} attempts: {str(last_error)}")

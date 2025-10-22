@@ -247,7 +247,7 @@ def main():
         print(f"Error: Config directory not found at {config_dir}")
         sys.exit(1)
     
-    agent_system = AgentSystem(Path(args.subfolder), input_dir)
+    agent_system = AgentSystem(Path(args.subfolder), input_dir, config_dir)
     
     # Run analysis
     try:

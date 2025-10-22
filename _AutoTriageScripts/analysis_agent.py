@@ -55,6 +55,81 @@ class AnalysisAgent:
         with open(Path(__file__).parent / "config" / "prompts.json") as f:
             self.prompts = json.load(f)
     
+    def _validate_and_fallback(self, response: str, required_fields: List[str]) -> Dict[str, Any]:
+        """
+        Validate AI response and provide fallback values if needed.
+        
+        Args:
+            response: Raw AI response string
+            required_fields: List of required fields in the response
+        
+        Returns:
+            Validated dict with fallback values if needed
+        """
+        # Try to parse JSON
+        try:
+            data = json.loads(response)
+        except json.JSONDecodeError as e:
+            print(f"Warning: Failed to parse AI response as JSON: {str(e)}")
+            print(f"Response preview: {response[:200]}...")
+            return self._create_fallback_response(
+                error="Failed to parse AI response as JSON",
+                raw_response=response
+            )
+        
+        # Validate required fields
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            print(f"Warning: AI response missing required fields: {missing_fields}")
+            # Try to provide defaults for missing fields
+            for field in missing_fields:
+                if field == "is_applicable":
+                    data[field] = False  # Conservative default
+                elif field == "confidence":
+                    data[field] = 0.0
+                elif field == "explanation":
+                    data[field] = "No explanation provided by AI"
+                elif field == "evidence":
+                    data[field] = {}
+                elif field == "recommended_actions":
+                    data[field] = []
+        
+        # Validate field types
+        if "is_applicable" in data and not isinstance(data["is_applicable"], bool):
+            data["is_applicable"] = bool(data["is_applicable"])
+        
+        if "confidence" in data:
+            try:
+                confidence = float(data["confidence"])
+                data["confidence"] = max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
+            except (ValueError, TypeError):
+                print(f"Warning: Invalid confidence value: {data['confidence']}")
+                data["confidence"] = 0.5
+        
+        if "recommended_actions" in data and not isinstance(data["recommended_actions"], list):
+            data["recommended_actions"] = []
+        
+        return data
+    
+    def _create_fallback_response(self, error: str, raw_response: str = "") -> Dict[str, Any]:
+        """
+        Create a fallback response when AI fails.
+        
+        Args:
+            error: Error message
+            raw_response: Raw AI response if available
+        
+        Returns:
+            Fallback response dict
+        """
+        return {
+            "is_applicable": False,  # Conservative: assume not applicable on error
+            "confidence": 0.0,
+            "explanation": f"Analysis failed: {error}. Manual review recommended.",
+            "evidence": {"error": error, "raw_response": raw_response[:500] if raw_response else ""},
+            "recommended_actions": ["Manual review required due to analysis failure"]
+        }
+    
     def get_code_context(self, file_path: str, line_number: Optional[int] = None) -> str:
         """Get relevant code context from the specified file."""
         try:
@@ -112,22 +187,22 @@ class AnalysisAgent:
             sbom_context=json.dumps(sbom_context, indent=2)
         )
         
-        # Query AI
-        response = query_model(
-            self.ai_client,
-            formatted_prompt,
-            system_context=prompt_data["system_context"],
-            config=self.config
-        )
-        
-        # Parse response
+        # Query AI with error handling
         try:
-            return json.loads(response)
-        except json.JSONDecodeError:
-            return {
-                "error": "Failed to parse AI response as JSON",
-                "raw_response": response
-            }
+            response = query_model(
+                self.ai_client,
+                formatted_prompt,
+                system_context=prompt_data["system_context"],
+                config=self.config
+            )
+            
+            # Validate and parse response with fallback
+            required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
+            return self._validate_and_fallback(response, required_fields)
+            
+        except Exception as e:
+            print(f"Error during vulnerability analysis: {str(e)}")
+            return self._create_fallback_response(str(e))
     
     def analyze_code_quality(self) -> Dict[str, Any]:
         """Analyze a code quality issue."""
@@ -154,22 +229,22 @@ class AnalysisAgent:
             project_context=json.dumps(project_context, indent=2)
         )
         
-        # Query AI
-        response = query_model(
-            self.ai_client,
-            formatted_prompt,
-            system_context=prompt_data["system_context"],
-            config=self.config
-        )
-        
-        # Parse response
+        # Query AI with error handling
         try:
-            return json.loads(response)
-        except json.JSONDecodeError:
-            return {
-                "error": "Failed to parse AI response as JSON",
-                "raw_response": response
-            }
+            response = query_model(
+                self.ai_client,
+                formatted_prompt,
+                system_context=prompt_data["system_context"],
+                config=self.config
+            )
+            
+            # Validate and parse response with fallback
+            required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
+            return self._validate_and_fallback(response, required_fields)
+            
+        except Exception as e:
+            print(f"Error during code quality analysis: {str(e)}")
+            return self._create_fallback_response(str(e))
     
     def analyze_dependency(self) -> Dict[str, Any]:
         """Analyze a dependency issue."""
@@ -187,60 +262,80 @@ class AnalysisAgent:
             sbom_context=json.dumps(sbom_context, indent=2)
         )
         
-        # Query AI
-        response = query_model(
-            self.ai_client,
-            formatted_prompt,
-            system_context=prompt_data["system_context"],
-            config=self.config
-        )
-        
-        # Parse response
+        # Query AI with error handling
         try:
-            return json.loads(response)
-        except json.JSONDecodeError:
-            return {
-                "error": "Failed to parse AI response as JSON",
-                "raw_response": response
-            }
+            response = query_model(
+                self.ai_client,
+                formatted_prompt,
+                system_context=prompt_data["system_context"],
+                config=self.config
+            )
+            
+            # For dependency analysis, the required fields might differ slightly
+            # but we'll use the same basic structure for consistency
+            required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
+            return self._validate_and_fallback(response, required_fields)
+            
+        except Exception as e:
+            print(f"Error during dependency analysis: {str(e)}")
+            return self._create_fallback_response(str(e))
     
     def analyze(self) -> AnalysisResult:
         """
         Run the full analysis pipeline.
         Returns an AnalysisResult with the findings.
+        
+        Even if errors occur, returns a result with fallback values
+        and low confidence to enable manual review.
         """
         try:
             # Analyze based on problem type
             if self.problem["type"] == "vulnerability":
                 analysis = self.analyze_vulnerability()
-            elif self.problem["type"] in ["code-smell", "bug"]:
+            elif self.problem["type"] in ["code-smell", "bug", "code_smell"]:
                 analysis = self.analyze_code_quality()
             else:
                 analysis = self.analyze_dependency()
             
-            # Check for analysis error
-            if "error" in analysis:
-                self.state = AnalysisState.ERROR
-                raise RuntimeError(f"Analysis failed: {analysis['error']}")
+            # Note: We no longer raise on "error" in analysis because
+            # fallback responses still provide valid structure with
+            # conservative defaults (not applicable, 0 confidence)
             
-            # Create result
+            # Create result (analysis now always has required fields due to fallback)
             result = AnalysisResult(
-                problem_id=self.problem["id"],
-                is_applicable=analysis["is_applicable"],
-                confidence=analysis["confidence"],
-                explanation=analysis["explanation"],
-                severity=self.problem["severity"],
-                recommended_actions=analysis["recommended_actions"],
-                evidence=analysis["evidence"],
+                problem_id=self.problem.get("id", "unknown"),
+                is_applicable=analysis.get("is_applicable", False),
+                confidence=analysis.get("confidence", 0.0),
+                explanation=analysis.get("explanation", "Analysis unavailable"),
+                severity=self.problem.get("severity", "UNKNOWN"),
+                recommended_actions=analysis.get("recommended_actions", ["Manual review required"]),
+                evidence=analysis.get("evidence", {}),
                 analysis_steps=self.analysis_steps
             )
             
-            self.state = AnalysisState.COMPLETE
+            # Set state based on whether there was an error
+            if "error" in analysis.get("evidence", {}):
+                self.state = AnalysisState.ERROR
+                print(f"Warning: Analysis completed with errors for {self.problem.get('id', 'unknown')}")
+            else:
+                self.state = AnalysisState.COMPLETE
+            
             return result
             
         except Exception as e:
+            # Last resort fallback if something goes completely wrong
             self.state = AnalysisState.ERROR
-            raise RuntimeError(f"Analysis failed: {str(e)}")
+            print(f"Critical error in analysis pipeline: {str(e)}")
+            return AnalysisResult(
+                problem_id=self.problem.get("id", "unknown"),
+                is_applicable=False,
+                confidence=0.0,
+                explanation=f"Critical analysis failure: {str(e)}",
+                severity=self.problem.get("severity", "UNKNOWN"),
+                recommended_actions=["Manual review required - analysis pipeline failed"],
+                evidence={"critical_error": str(e)},
+                analysis_steps=self.analysis_steps
+            )
 
 class AgentSystem:
     """System for managing multiple analysis agents."""

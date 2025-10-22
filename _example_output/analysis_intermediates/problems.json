@@ -1,0 +1,230 @@
+[
+  {
+    "id": "CVE-2020-14343",
+    "source": "dependency-check",
+    "title": "Vulnerability in PyYAML:5.3.1: CVE-2020-14343",
+    "description": "CWEs: CWE-20\nA vulnerability was discovered in the PyYAML library in versions before 5.4, where it is susceptible to arbitrary code execution when it processes untrusted YAML files through the full_load method or with the FullLoader loader. Applications that use the library to process untrusted input may be vulnerable to this flaw. This flaw allows an attacker to execute arbitrary code on the system by abusing the python/object/new constructor. This flaw is due to an incomplete fix for CVE-2020-1747.",
+    "severity": "CRITICAL",
+    "component": "PyYAML:5.3.1",
+    "type": "vulnerability",
+    "line": null,
+    "raw_data": {
+      "vulnerability": {
+        "source": "NVD",
+        "name": "CVE-2020-14343",
+        "severity": "CRITICAL",
+        "cvssv2": {
+          "score": 10.0,
+          "accessVector": "NETWORK",
+          "accessComplexity": "LOW",
+          "authenticationr": "NONE",
+          "confidentialityImpact": "COMPLETE",
+          "integrityImpact": "COMPLETE",
+          "availabilityImpact": "COMPLETE",
+          "severity": "HIGH",
+          "version": "2.0",
+          "exploitabilityScore": "10.0",
+          "impactScore": "10.0"
+        },
+        "cvssv3": {
+          "baseScore": 9.8,
+          "attackVector": "NETWORK",
+          "attackComplexity": "LOW",
+          "privilegesRequired": "NONE",
+          "userInteraction": "NONE",
+          "scope": "UNCHANGED",
+          "confidentialityImpact": "HIGH",
+          "integrityImpact": "HIGH",
+          "availabilityImpact": "HIGH",
+          "baseSeverity": "CRITICAL",
+          "exploitabilityScore": "3.9",
+          "impactScore": "5.9",
+          "version": "3.1"
+        },
+        "cwes": [
+          "CWE-20"
+        ],
+        "description": "A vulnerability was discovered in the PyYAML library in versions before 5.4, where it is susceptible to arbitrary code execution when it processes untrusted YAML files through the full_load method or with the FullLoader loader. Applications that use the library to process untrusted input may be vulnerable to this flaw. This flaw allows an attacker to execute arbitrary code on the system by abusing the python/object/new constructor. This flaw is due to an incomplete fix for CVE-2020-1747.",
+        "notes": "",
+        "references": [
+          {
+            "source": "af854a3a-2127-422b-91ae-364da2661108",
+            "url": "https://github.com/SeldonIO/seldon-core/issues/2252"
+          },
+          {
+            "source": "af854a3a-2127-422b-91ae-364da2661108",
+            "url": "https://bugzilla.redhat.com/show_bug.cgi?id=1860466",
+            "name": "ISSUE_TRACKING,THIRD_PARTY_ADVISORY"
+          },
+          {
+            "source": "af854a3a-2127-422b-91ae-364da2661108",
+            "url": "https://www.oracle.com/security-alerts/cpuapr2022.html",
+            "name": "PATCH,THIRD_PARTY_ADVISORY"
+          },
+          {
+            "source": "af854a3a-2127-422b-91ae-364da2661108",
+            "url": "https://www.oracle.com/security-alerts/cpujul2022.html",
+            "name": "PATCH,THIRD_PARTY_ADVISORY"
+          },
+          {
+            "source": "secalert@redhat.com",
+            "url": "https://bugzilla.redhat.com/show_bug.cgi?id=1860466",
+            "name": "ISSUE_TRACKING,THIRD_PARTY_ADVISORY"
+          },
+          {
+            "source": "secalert@redhat.com",
+            "url": "https://github.com/yaml/pyyaml/issues/420"
+          },
+          {
+            "source": "secalert@redhat.com",
+            "url": "https://www.oracle.com/security-alerts/cpujul2022.html",
+            "name": "PATCH,THIRD_PARTY_ADVISORY"
+          },
+          {
+            "source": "secalert@redhat.com",
+            "url": "https://www.oracle.com/security-alerts/cpuapr2022.html",
+            "name": "PATCH,THIRD_PARTY_ADVISORY"
+          },
+          {
+            "source": "af854a3a-2127-422b-91ae-364da2661108",
+            "url": "https://github.com/yaml/pyyaml/issues/420"
+          },
+          {
+            "source": "secalert@redhat.com",
+            "url": "https://github.com/SeldonIO/seldon-core/issues/2252"
+          }
+        ],
+        "vulnerableSoftware": [
+          {
+            "software": {
+              "id": "cpe:2.3:a:oracle:communications_cloud_native_core_network_function_cloud_native_environment:1.10.0:*:*:*:*:*:*:*"
+            }
+          },
+          {
+            "software": {
+              "id": "cpe:2.3:a:oracle:communications_cloud_native_core_network_function_cloud_native_environment:22.1.0:*:*:*:*:*:*:*"
+            }
+          },
+          {
+            "software": {
+              "id": "cpe:2.3:a:pyyaml:pyyaml:*:*:*:*:*:*:*:*",
+              "vulnerabilityIdMatched": "true",
+              "versionStartIncluding": "5.1",
+              "versionEndExcluding": "5.4"
+            }
+          }
+        ]
+      },
+      "dependency": {
+        "fileName": "PyYAML:5.3.1",
+        "filePath": "/github/workspace/container_security/requirements.txt:PyYAML/5.3.1",
+        "packages": [
+          {
+            "id": "pkg:pypi/pyyaml@5.3.1",
+            "confidence": "HIGHEST"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "a6a8e075-8b1b-4c6b-86d5-028abb0709f6",
+    "source": "sonarqube",
+    "title": "Use a specific version tag for the image.",
+    "description": "Use a specific version tag for the image.",
+    "severity": "HIGH",
+    "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+    "type": "code_smell",
+    "line": 2,
+    "raw_data": {
+      "key": "a6a8e075-8b1b-4c6b-86d5-028abb0709f6",
+      "rule": "docker:S6596",
+      "severity": "MAJOR",
+      "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+      "project": "AutoTriage",
+      "line": 2,
+      "hash": "b447e3c760959922ff05f9620aa9307a",
+      "textRange": {
+        "startLine": 2,
+        "endLine": 2,
+        "startOffset": 5,
+        "endOffset": 18
+      },
+      "flows": [],
+      "status": "OPEN",
+      "message": "Use a specific version tag for the image.",
+      "effort": "5min",
+      "debt": "5min",
+      "author": "15070397+exkitsune@users.noreply.github.com",
+      "tags": [],
+      "creationDate": "2025-09-26T01:05:07+0000",
+      "updateDate": "2025-09-29T01:33:13+0000",
+      "type": "CODE_SMELL",
+      "scope": "MAIN",
+      "quickFixAvailable": false,
+      "messageFormattings": [],
+      "codeVariants": [],
+      "cleanCodeAttribute": "LOGICAL",
+      "cleanCodeAttributeCategory": "INTENTIONAL",
+      "impacts": [
+        {
+          "softwareQuality": "MAINTAINABILITY",
+          "severity": "MEDIUM"
+        }
+      ],
+      "issueStatus": "OPEN",
+      "prioritizedRule": false,
+      "fromSonarQubeUpdate": false
+    }
+  },
+  {
+    "id": "1ab0d8ce-5805-47f4-8998-81aacecd3bb6",
+    "source": "sonarqube",
+    "title": "Sort these package names alphanumerically.",
+    "description": "Sort these package names alphanumerically.",
+    "severity": "LOW",
+    "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+    "type": "code_smell",
+    "line": 6,
+    "raw_data": {
+      "key": "1ab0d8ce-5805-47f4-8998-81aacecd3bb6",
+      "rule": "docker:S7018",
+      "severity": "MINOR",
+      "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+      "project": "AutoTriage",
+      "line": 6,
+      "hash": "af23c9e223884c765775f1457e4514ed",
+      "textRange": {
+        "startLine": 6,
+        "endLine": 12,
+        "startOffset": 22,
+        "endOffset": 7
+      },
+      "flows": [],
+      "status": "OPEN",
+      "message": "Sort these package names alphanumerically.",
+      "effort": "5min",
+      "debt": "5min",
+      "author": "15070397+exkitsune@users.noreply.github.com",
+      "tags": [],
+      "creationDate": "2025-09-26T01:05:07+0000",
+      "updateDate": "2025-09-29T01:33:13+0000",
+      "type": "CODE_SMELL",
+      "scope": "MAIN",
+      "quickFixAvailable": false,
+      "messageFormattings": [],
+      "codeVariants": [],
+      "cleanCodeAttribute": "CONVENTIONAL",
+      "cleanCodeAttributeCategory": "CONSISTENT",
+      "impacts": [
+        {
+          "softwareQuality": "MAINTAINABILITY",
+          "severity": "LOW"
+        }
+      ],
+      "issueStatus": "OPEN",
+      "prioritizedRule": false,
+      "fromSonarQubeUpdate": false
+    }
+  }
+]

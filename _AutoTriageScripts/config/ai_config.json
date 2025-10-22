@@ -1,0 +1,26 @@
+{
+  "ai_providers": {
+    "openrouter": {
+      "api_base": "https://openrouter.ai/api/v1",
+      "models": {
+        "default": "qwen/qwen3-30b-a3b:free"
+      }
+    }
+  },
+  "analysis": {
+    "max_retries": 3,
+    "timeout_seconds": 300,
+    "confidence_threshold": 0.8,
+    "context_tokens": 100000
+  },
+  "external_apis": {
+    "nvd": {
+      "api_base": "https://services.nvd.nist.gov/rest/json/cves/2.0",
+      "delay_ms": 6000
+    },
+    "exploitdb": {
+      "api_base": "https://www.exploit-db.com/search?text=",
+      "delay_ms": 1000
+    }
+  }
+}

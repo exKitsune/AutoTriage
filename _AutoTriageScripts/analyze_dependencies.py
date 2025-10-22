@@ -206,6 +206,11 @@ def main():
         print(f"Error: Input directory '{input_dir}' does not exist")
         sys.exit(1)
     
+    # Check for required environment variables
+    if not os.getenv("OPENROUTER_API_KEY"):
+        print("Error: OPENROUTER_API_KEY environment variable is required")
+        sys.exit(1)
+    
     print("Starting analysis...")
     enabled_tools = []
     if args.sonarqube:
@@ -214,9 +219,10 @@ def main():
         enabled_tools.append("dependency-check")
     print("Enabled tools:", ", ".join(enabled_tools))
     
+    # Collect problems from enabled tools
     problems = collect_problems(input_dir, args)
     
-    # Write consolidated problems to a JSON file
+    # Write initial problems to a JSON file for debug
     problems_file = output_dir / "problems.json"
     with open(problems_file, 'w') as f:
         json.dump([{
@@ -231,14 +237,33 @@ def main():
             "raw_data": p.raw_data
         } for p in problems], f, indent=2)
     
-    print(f"\nAnalysis complete. Found {len(problems)} issues:")
-    severity_counts = {}
-    for p in problems:
-        severity_counts[p.severity] = severity_counts.get(p.severity, 0) + 1
+    print(f"\nFound {len(problems)} potential issues. Starting detailed analysis...")
     
-    for severity in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]:
-        if count := severity_counts.get(severity, 0):
-            print(f"  {severity}: {count}")
+    # Initialize the agent system
+    from analysis_agent import AgentSystem
+    
+    config_dir = Path(__file__).parent / "config"
+    if not config_dir.exists():
+        print(f"Error: Config directory not found at {config_dir}")
+        sys.exit(1)
+    
+    agent_system = AgentSystem(Path(args.subfolder), input_dir)
+    
+    # Run analysis
+    try:
+        results = agent_system.analyze_problems(problems)
+        agent_system.generate_report(output_dir)
+        
+        print("\nAnalysis complete!")
+        print(f"Total issues analyzed: {len(problems)}")
+        print(f"Issues requiring attention: {sum(1 for r in results if r.is_applicable)}")
+        print("\nResults have been written to:")
+        print(f"  {output_dir / 'analysis_report.json'}")
+        print(f"  {output_dir / 'analysis_summary.md'}")
+        
+    except Exception as e:
+        print(f"Error during analysis: {str(e)}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

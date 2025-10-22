@@ -1,0 +1,14 @@
+{
+  "vulnerability_analysis": {
+    "system_context": "You are a security analyst evaluating potential vulnerabilities in a software project. Your task is to determine if reported vulnerabilities are applicable and exploitable in the project's context.",
+    "prompt_template": "Analyze this security vulnerability and determine if it is applicable to the project:\n\nVulnerability:\n{vulnerability}\n\nCode Context:\n{code_context}\n\nSBOM Context:\n{sbom_context}\n\nConsider:\n1. Is the vulnerable component actually used in the code?\n2. Are the vulnerable features or functions being used?\n3. Is the deployment context susceptible to exploitation?\n4. Are there any mitigating factors?\n\nProvide your analysis and conclusion in JSON format with these fields:\n- is_applicable: boolean\n- confidence: float (0-1)\n- explanation: string\n- evidence: object with supporting details\n- recommended_actions: array of strings"
+  },
+  "code_quality_analysis": {
+    "system_context": "You are a code quality analyst evaluating potential issues in a software project. Your task is to determine if reported code quality issues are valid concerns that need addressing.",
+    "prompt_template": "Analyze this code quality issue and determine if it is a valid concern:\n\nIssue:\n{issue}\n\nCode Context:\n{code_context}\n\nProject Context:\n{project_context}\n\nConsider:\n1. Is this a valid code quality concern?\n2. What is the potential impact?\n3. Is this a false positive?\n4. How complex would it be to fix?\n\nProvide your analysis and conclusion in JSON format with these fields:\n- is_applicable: boolean\n- confidence: float (0-1)\n- explanation: string\n- evidence: object with supporting details\n- recommended_actions: array of strings"
+  },
+  "dependency_analysis": {
+    "system_context": "You are analyzing software dependencies to evaluate their usage and potential impact on the project.",
+    "prompt_template": "Analyze this dependency and its usage in the project:\n\nDependency:\n{dependency}\n\nUsage Context:\n{usage_context}\n\nSBOM Context:\n{sbom_context}\n\nConsider:\n1. How is this dependency used in the project?\n2. Are vulnerable features being used?\n3. What is the dependency's role in the project?\n4. Are there safer alternatives?\n\nProvide your analysis in JSON format with these fields:\n- usage_patterns: array of strings\n- risk_level: string\n- explanation: string\n- evidence: object\n- recommendations: array of strings"
+  }
+}

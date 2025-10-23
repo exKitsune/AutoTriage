@@ -4,7 +4,7 @@ import argparse
 import os
 import sys
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
@@ -249,9 +249,12 @@ def main():
     
     agent_system = AgentSystem(Path(args.subfolder), input_dir, config_dir)
     
+    # Convert Problem dataclasses to dicts for the agent system
+    problems_as_dicts = [asdict(p) for p in problems]
+    
     # Run analysis
     try:
-        results = agent_system.analyze_problems(problems)
+        results = agent_system.analyze_problems(problems_as_dicts)
         agent_system.generate_report(output_dir)
         
         print("\nAnalysis complete!")

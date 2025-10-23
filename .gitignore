@@ -49,6 +49,9 @@ sonar-project.properties
 assessment_results/
 .assessment_cache/
 
+# Test outputs
+test-analysis-outputs/
+
 # Misc
 .DS_Store
 Thumbs.db

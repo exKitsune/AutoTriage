@@ -9,7 +9,8 @@ import sys
 from pathlib import Path
 
 # Add parent directory to path to import modules
-sys.path.insert(0, str(Path(__file__).parent))
+# (tests are in tests/ subdirectory, modules are in parent)
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 def test_problem_parsing():
     """Test that we can parse the example problems.json file."""
@@ -48,9 +49,10 @@ def test_agent_system_init():
     from analysis_agent import AgentSystem
     
     # Test paths
-    workspace_root = Path(__file__).parent.parent / "container_security"
-    input_dir = Path(__file__).parent.parent / "_example_output"
-    config_dir = Path(__file__).parent / "config"
+    # Tests are in _AutoTriageScripts/tests/, so go up to _AutoTriageScripts/ and then to config/
+    workspace_root = Path(__file__).parent.parent.parent / "container_security"
+    input_dir = Path(__file__).parent.parent.parent / "_example_output"
+    config_dir = Path(__file__).parent.parent / "config"
     
     if not config_dir.exists():
         print("✗ Config directory not found")
@@ -58,10 +60,11 @@ def test_agent_system_init():
     
     try:
         # Try to initialize (will fail if OPENROUTER_API_KEY not set, but that's OK)
-        agent_system = AgentSystem(workspace_root, input_dir, config_dir)
+        agent_system = AgentSystem(workspace_root, input_dir, config_dir, max_iterations=3)
         print("✓ AgentSystem initialized successfully")
         print(f"  - Workspace: {agent_system.workspace_root}")
         print(f"  - Input dir: {agent_system.input_dir}")
+        print(f"  - Max iterations: {agent_system.max_iterations}")
         print(f"  - Config loaded: {len(agent_system.config)} keys")
         print("Agent system initialization: PASSED\n")
         return True

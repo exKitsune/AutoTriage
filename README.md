@@ -1,15 +1,362 @@
 # AutoTriage
 
-## Workflows
+An AI-powered automated security and code quality triage system that intelligently analyzes issues from various scanning tools (SonarQube, OWASP Dependency-Check, CycloneDX SBOMs) to determine which issues are truly applicable to your project.
 
-### Sonarqube
+## Overview
 
-Run the action manually and specify the test subfolder
+AutoTriage uses an agentic AI system to analyze security vulnerabilities and code quality issues in context. Instead of simply flagging every potential issue, it uses an LLM with tool-calling capabilities to intelligently investigate your codebase and determine:
 
-### Configuration
+- **Is this vulnerability actually exploitable?** Does the code use the vulnerable functions?
+- **Is this dependency actually used?** Is it imported anywhere in the codebase?
+- **Is this code smell a real problem?** Does it warrant attention in this specific context?
 
-Github secrets:
+## How It Works
 
-- `OPENROUTER_API_KEY`: https://openrouter.ai api key for interacting with ai models
-- `SONAR_HOST_URL`: SonarQube server if you want to use it
-- `SONAR_TOKEN`: SonarQube key
+### Architecture
+
+1. **Problem Collection**: Parses outputs from security tools (SonarQube, Dependency-Check, SBOM)
+2. **Agentic Analysis**: For each issue, an AI agent with tool access investigates:
+   - Reads source code files
+   - Searches for patterns (imports, function usage)
+   - Checks SBOM for package information
+   - Analyzes file structures
+3. **Contextualized Results**: Provides actionable reports with confidence scores and evidence
+
+### The Agentic Loop
+
+The AI agent uses an iterative tool-calling approach:
+
+```
+1. Receive problem (e.g., "PyYAML 5.3.1 has CVE-2020-1234")
+2. LLM decides what to investigate first
+   → Calls: search_sbom("PyYAML")
+3. Receives result: { found: true, version: "5.3.1" }
+4. LLM decides next step
+   → Calls: check_import_usage("yaml")
+5. Receives result: { is_imported: false }
+6. LLM concludes
+   → Calls: provide_analysis(is_applicable=false, confidence=0.9, ...)
+```
+
+This continues for up to 5 iterations per issue.
+
+### Available Tools
+
+The AI agent has access to these tools:
+
+- **read_file**: Read complete file contents
+- **read_file_lines**: Read specific line ranges (for large files)
+- **search_code**: Grep-based pattern search with regex support
+- **find_files**: Find files matching patterns
+- **list_directory**: List directory contents
+- **search_sbom**: Search Software Bill of Materials for packages
+- **check_import_usage**: Check if Python packages are imported
+- **provide_analysis**: Submit final analysis conclusion
+
+## Setup
+
+### Prerequisites
+
+- Python 3.8+
+- GitHub Actions environment (or Linux for local testing)
+- OpenRouter API key (for AI model access)
+
+### GitHub Secrets
+
+Configure these secrets in your repository:
+
+- `OPENROUTER_API_KEY`: API key from [OpenRouter](https://openrouter.ai)
+- `SONAR_HOST_URL`: SonarQube server URL (if using SonarQube)
+- `SONAR_TOKEN`: SonarQube authentication token
+
+### Local Setup
+
+```bash
+# Install dependencies
+pip install -r _AutoTriageScripts/requirements.txt
+
+# Set environment variable
+export OPENROUTER_API_KEY="your-api-key-here"
+```
+
+## Usage
+
+### Via GitHub Workflow
+
+The workflow runs automatically or can be triggered manually:
+
+1. Go to **Actions** → **Code Analysis**
+2. Click **Run workflow**
+3. Configure the workflow:
+   - **Subfolder**: Select the test subfolder (e.g., `container_security`, `old_deps`)
+   - **Max Iterations** (optional): Maximum tool calls AI can make per issue (default: 5)
+
+Results are uploaded as workflow artifacts:
+
+- `analysis_report.json`: Detailed JSON report with all findings
+- `analysis_summary.md`: Human-readable summary
+- `problems.json`: Debug file with all detected issues (before analysis)
+
+### Manual Execution
+
+```bash
+# Analyze a project
+python _AutoTriageScripts/analyze_dependencies.py <subfolder> --sonarqube --dependency-check
+
+# Example with container_security test project
+python _AutoTriageScripts/analyze_dependencies.py container_security --dependency-check
+
+# Customize max iterations (allow more thorough investigation)
+python _AutoTriageScripts/analyze_dependencies.py container_security --dependency-check --max-iterations 8
+
+# Quick analysis (fewer iterations)
+python _AutoTriageScripts/analyze_dependencies.py old_deps --sonarqube --max-iterations 3
+```
+
+**Available Options:**
+
+- `--sonarqube`: Process SonarQube results
+- `--dependency-check`: Process OWASP Dependency-Check results
+- `--input-dir`: Custom input directory (default: `analysis-inputs`)
+- `--output-dir`: Custom output directory (default: `analysis-outputs`)
+- `--max-iterations`: Max tool calls per issue (default: `5`)
+
+## Project Structure
+
+```
+AutoTriage/
+├── _AutoTriageScripts/           # Main analysis system
+│   ├── analyze_dependencies.py   # Entry point script
+│   ├── analysis_agent.py         # Core agent logic and agentic loop
+│   ├── tool_executor.py          # Tool implementations
+│   ├── ai_tools.py               # OpenAI/OpenRouter client
+│   ├── prompt_formatter.py       # Formats tool docs for LLM
+│   ├── tools_definition.json     # Tool specifications
+│   ├── config/
+│   │   ├── ai_config.json        # AI model configuration
+│   │   └── prompts.json          # LLM prompt templates
+│   └── tests/                    # Test suite
+│
+├── _example_output/              # Example outputs from tools
+│   ├── CycloneDX/               # SBOM examples
+│   ├── Dependency-Check/        # Vulnerability scan examples
+│   └── SonarQube/               # Code quality scan examples
+│
+├── container_security/           # Test project #1: Vulnerable containers
+│   ├── app/
+│   │   └── app.py
+│   ├── requirements.txt
+│   └── vulnerable/
+│       └── Dockerfile
+│
+├── old_deps/                     # Test project #2: Outdated dependencies
+│   ├── app.py
+│   └── requirements.txt
+│
+└── .github/
+    └── workflows/
+        └── code-analysis.yml     # GitHub Actions workflow
+```
+
+## Configuration
+
+### AI Model Settings (`_AutoTriageScripts/config/ai_config.json`)
+
+```json
+{
+  "api_base_url": "https://openrouter.ai/api/v1",
+  "model": "anthropic/claude-3.5-sonnet",
+  "analysis": {
+    "max_retries": 3,
+    "timeout_seconds": 300
+  }
+}
+```
+
+### Max Iterations
+
+Controls how many tools the AI can call before forcing a conclusion:
+
+- **Default: 5** - Good balance for most cases
+- **Lower (2-3)**: Faster, cheaper, but less thorough
+  - Use for quick scans or low-priority issues
+  - May miss complex dependencies
+- **Higher (7-10)**: More thorough investigation
+  - Use for critical vulnerabilities
+  - Better at tracing complex import chains
+  - Higher API costs
+
+Set via `--max-iterations` flag or workflow input.
+
+### Prompt Templates (`_AutoTriageScripts/config/prompts.json`)
+
+Contains system prompts and templates for different analysis types:
+
+- `vulnerability_analysis`: Security vulnerability evaluation
+- `code_quality_analysis`: Code smell and bug analysis
+- `dependency_analysis`: Dependency usage and impact
+
+## Analysis Process
+
+### Input
+
+The system accepts problems from three sources:
+
+1. **SonarQube**: Code quality issues, bugs, security hotspots
+
+   - Parsed from JSON export
+   - Includes file paths, line numbers, rule types
+
+2. **OWASP Dependency-Check**: CVE vulnerabilities in dependencies
+
+   - Parsed from JSON report
+   - Includes CVE IDs, severity, affected packages
+
+3. **CycloneDX SBOM**: Software Bill of Materials
+   - Used as supplementary data for dependency analysis
+   - Provides version and licensing information
+
+### Output
+
+**`analysis_report.json`** - Detailed JSON report:
+
+```json
+{
+  "summary": {
+    "total_problems": 10,
+    "applicable_problems": 3,
+    "by_severity": {
+      "CRITICAL": 1,
+      "HIGH": 2
+    }
+  },
+  "results": [
+    {
+      "problem_id": "CVE-2020-1234",
+      "is_applicable": false,
+      "confidence": 0.9,
+      "explanation": "PyYAML is in requirements.txt but never imported...",
+      "evidence": {
+        "in_requirements": true,
+        "import_found": false,
+        "files_searched": ["*.py"]
+      },
+      "recommended_actions": ["Remove unused PyYAML dependency", "Run pip freeze to clean requirements.txt"],
+      "analysis_steps": [
+        { "step": 1, "action": "search_sbom", "tool": "search_sbom" },
+        { "step": 2, "action": "check_import_usage", "tool": "check_import_usage" }
+      ]
+    }
+  ]
+}
+```
+
+**`analysis_summary.md`** - Human-readable markdown:
+
+```markdown
+# Security and Quality Analysis Summary
+
+Total problems analyzed: 10
+Applicable problems: 3
+
+## Problems by Severity
+
+- CRITICAL: 1
+- HIGH: 2
+```
+
+## Future Enhancements
+
+### Planned Features
+
+1. **User Feedback System**
+
+   - Allow developers to provide feedback on false positives
+   - Store feedback in a knowledge base
+   - Agent learns from historical context to reduce false positives
+
+2. **Advanced Timeout Handling**
+
+   - Soft timeout (5 messages): Nudge LLM to change strategy
+   - Hard timeout (8 messages): Force best-effort conclusion
+   - Currently: Simple 5-iteration limit
+
+3. **Multi-Language Support**
+
+   - Currently Python-focused
+   - Expand to JavaScript, Java, Go, etc.
+
+4. **Custom Rule Definitions**
+   - Allow teams to define project-specific rules
+   - Override default analysis behavior
+
+## Testing
+
+### Test Projects
+
+- **`container_security/`**: Tests container security issues
+  - Vulnerable Dockerfile configurations
+  - Python security vulnerabilities
+- **`old_deps/`**: Tests dependency analysis
+  - Outdated packages
+  - Unused dependencies
+
+### Running Tests
+
+```bash
+cd _AutoTriageScripts/tests
+
+# Run all tests
+python test_basic.py
+
+# Test specific components
+python test_tools.py           # Test individual tools
+python test_path_resolution.py  # Test file path handling
+```
+
+## Troubleshooting
+
+### "API key must be set" Error
+
+**Solution**: Ensure `OPENROUTER_API_KEY` is set as environment variable or GitHub secret
+
+### "File not found" Errors
+
+**Solution**: Check that:
+
+- Workspace root is correctly set (repository root, not subfolder)
+- File paths in problems don't have project prefixes like "ProjectName:"
+- Tools have been run on the correct subfolder
+
+### "Max iterations reached"
+
+**Cause**: LLM couldn't reach conclusion within 5 tool calls
+**Solution**: This triggers automatic fallback with conservative defaults (not applicable, low confidence)
+
+### Empty Analysis Summary
+
+**Cause**: No problems detected, or all problems filtered out
+**Solution**: Check that scanning tools ran successfully and `problems.json` contains issues
+
+## Contributing
+
+Contributions welcome! Areas of interest:
+
+- Additional tool implementations
+- Support for more languages and frameworks
+- Improved prompt engineering
+- Performance optimizations
+
+## License
+
+[Add your license here]
+
+## Credits
+
+Built with:
+
+- [OpenRouter](https://openrouter.ai) for AI model access
+- [OpenAI Python SDK](https://github.com/openai/openai-python) for API client
+- [SonarQube](https://www.sonarqube.org/) for code quality analysis
+- [OWASP Dependency-Check](https://owasp.org/www-project-dependency-check/) for vulnerability scanning
+- [CycloneDX](https://cyclonedx.org/) for SBOM generation

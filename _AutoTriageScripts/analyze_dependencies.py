@@ -130,6 +130,13 @@ def parse_arguments() -> argparse.Namespace:
         default="analysis-outputs",
         help="Directory to write analysis results (default: analysis-outputs)"
     )
+    
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=5,
+        help="Maximum number of tool calls the AI can make per issue (default: 5)"
+    )
 
     args = parser.parse_args()
     
@@ -218,6 +225,7 @@ def main():
     if args.dependency_check:
         enabled_tools.append("dependency-check")
     print("Enabled tools:", ", ".join(enabled_tools))
+    print(f"Max iterations per issue: {args.max_iterations}")
     
     # Collect problems from enabled tools
     problems = collect_problems(input_dir, args)
@@ -247,7 +255,10 @@ def main():
         print(f"Error: Config directory not found at {config_dir}")
         sys.exit(1)
     
-    agent_system = AgentSystem(Path(args.subfolder), input_dir, config_dir)
+    # Workspace root is the current directory (repo root), not the subfolder
+    # The subfolder is already included in the component paths from SonarQube
+    workspace_root = Path.cwd()
+    agent_system = AgentSystem(workspace_root, input_dir, config_dir, max_iterations=args.max_iterations)
     
     # Convert Problem dataclasses to dicts for the agent system
     problems_as_dicts = [asdict(p) for p in problems]

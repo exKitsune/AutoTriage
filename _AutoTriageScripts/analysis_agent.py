@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Any
 from openai import OpenAI
 
 from ai_tools import get_ai_client, query_model
+from tool_executor import ToolExecutor
+from prompt_formatter import format_tools_for_prompt
 
 class AnalysisState(Enum):
     """States that the analysis can be in."""
@@ -41,19 +43,40 @@ class AnalysisAgent:
         workspace_root: Path,
         input_dir: Path,
         ai_client: OpenAI,
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        max_iterations: int = 5
     ):
         self.problem = problem
         self.workspace_root = workspace_root
         self.input_dir = input_dir
         self.ai_client = ai_client
         self.config = config
+        self.max_iterations = max_iterations
         self.state = AnalysisState.GATHERING_CONTEXT
         self.analysis_steps = []
+        
+        # Initialize tool executor
+        self.tool_executor = ToolExecutor(workspace_root, input_dir)
         
         # Load prompt templates
         with open(Path(__file__).parent / "config" / "prompts.json") as f:
             self.prompts = json.load(f)
+    
+    def _execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute a tool by name with the given parameters.
+        Returns the tool's result dictionary.
+        """
+        try:
+            method = getattr(self.tool_executor, tool_name, None)
+            if not method:
+                return {"error": f"Unknown tool: {tool_name}"}
+            
+            return method(**parameters)
+        except TypeError as e:
+            return {"error": f"Invalid parameters for {tool_name}: {str(e)}"}
+        except Exception as e:
+            return {"error": f"Tool execution failed: {str(e)}"}
     
     def _validate_and_fallback(self, response: str, required_fields: List[str]) -> Dict[str, Any]:
         """
@@ -130,152 +153,219 @@ class AnalysisAgent:
             "recommended_actions": ["Manual review required due to analysis failure"]
         }
     
-    def get_code_context(self, file_path: str, line_number: Optional[int] = None) -> str:
-        """Get relevant code context from the specified file."""
+    def _run_agentic_loop(
+        self,
+        initial_prompt: str,
+        system_context: str,
+        max_iterations: int = 5
+    ) -> Dict[str, Any]:
+        """
+        Run the agentic loop where LLM can call tools iteratively.
+        
+        Args:
+            initial_prompt: The formatted prompt with problem details
+            system_context: System context for the LLM
+            max_iterations: Maximum number of tool calls before forcing conclusion
+        
+        Returns:
+            Analysis result dict with is_applicable, confidence, explanation, etc.
+        """
+        conversation_history = []
+        
+        # Build initial messages
+        messages = [
+            {"role": "system", "content": system_context},
+            {"role": "user", "content": initial_prompt}
+        ]
+        
+        for iteration in range(max_iterations):
+            self.analysis_steps.append({
+                "step": iteration + 1,
+                "action": "querying_llm",
+                "timestamp": ""
+            })
+            
+            try:
+                # Query the LLM
+                response = query_model(
+                    self.ai_client,
+                    messages[-1]["content"],  # Last message
+                    system_context=system_context if iteration == 0 else None,
+                    config=self.config
+                )
+                
+                # Try to parse as JSON tool call
+                try:
+                    tool_call = json.loads(response.strip())
+                    
+                    # Validate it has the right structure
+                    if not isinstance(tool_call, dict) or "tool" not in tool_call:
+                        # Not a valid tool call format
+                        print(f"Warning: LLM response not in tool format: {response[:200]}")
+                        return self._create_fallback_response(
+                            "LLM did not provide valid tool call format",
+                            response
+                        )
+                    
+                    tool_name = tool_call["tool"]
+                    parameters = tool_call.get("parameters", {})
+                    
+                    # Check if this is the final analysis
+                    if tool_name == "provide_analysis":
+                        self.analysis_steps.append({
+                            "step": iteration + 1,
+                            "action": "received_analysis",
+                            "tool": tool_name,
+                            "result": "Analysis complete"
+                        })
+                        
+                        # Validate the analysis has required fields
+                        required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
+                        for field in required_fields:
+                            if field not in parameters:
+                                parameters[field] = self._create_fallback_response(
+                                    f"Missing field in analysis: {field}"
+                                )[field]
+                        
+                        return parameters
+                    
+                    # Execute the tool
+                    self.analysis_steps.append({
+                        "step": iteration + 1,
+                        "action": "executing_tool",
+                        "tool": tool_name,
+                        "parameters": parameters
+                    })
+                    
+                    tool_result = self._execute_tool(tool_name, parameters)
+                    
+                    self.analysis_steps.append({
+                        "step": iteration + 1,
+                        "action": "tool_result",
+                        "tool": tool_name,
+                        "result": tool_result
+                    })
+                    
+                    # Add to conversation
+                    messages.append({"role": "assistant", "content": response})
+                    messages.append({
+                        "role": "user",
+                        "content": f"Tool result:\n{json.dumps(tool_result, indent=2)}\n\nWhat would you like to do next? (Call another tool or provide_analysis)"
+                    })
+                    
+                except json.JSONDecodeError:
+                    # Response is not JSON - treat as malformed
+                    print(f"Warning: LLM response is not valid JSON: {response[:200]}")
+                    return self._create_fallback_response(
+                        "LLM response was not valid JSON",
+                        response
+                    )
+                    
+            except Exception as e:
+                print(f"Error in agentic loop iteration {iteration + 1}: {str(e)}")
+                return self._create_fallback_response(f"Loop error: {str(e)}")
+        
+        # Max iterations reached
+        self.analysis_steps.append({
+            "step": max_iterations,
+            "action": "max_iterations_reached",
+            "result": "Forcing conclusion"
+        })
+        
+        # Try to force a conclusion by asking directly
         try:
-            target_file = self.workspace_root / file_path
-            if not target_file.exists():
-                return "File not found"
+            force_prompt = "You have reached the maximum number of tool calls. Based on the information you've gathered, provide your final analysis using the provide_analysis tool."
+            messages.append({"role": "user", "content": force_prompt})
             
-            with open(target_file) as f:
-                content = f.read()
-            
-            if line_number:
-                # TODO: Get context around the specific line
-                return f"Line {line_number} context not implemented yet"
-            
-            return content
-            
-        except Exception as e:
-            return f"Error reading file: {str(e)}"
-    
-    def get_sbom_context(self, component: str) -> Dict[str, Any]:
-        """Get relevant SBOM data for a component."""
-        sbom_file = self.input_dir / "sbom" / "sbom.json"
-        if not sbom_file.exists():
-            return {}
-        
-        try:
-            with open(sbom_file) as f:
-                sbom_data = json.load(f)
-            
-            # TODO: Find relevant component data in SBOM
-            return sbom_data
-            
-        except Exception as e:
-            return {"error": str(e)}
-    
-    def analyze_vulnerability(self) -> Dict[str, Any]:
-        """Analyze a security vulnerability."""
-        # Get vulnerability prompt template
-        prompt_data = self.prompts["vulnerability_analysis"]
-        
-        # Gather context
-        code_context = "No code context available"
-        if "component" in self.problem:
-            code_context = self.get_code_context(
-                self.problem["component"],
-                self.problem.get("line")
-            )
-        
-        sbom_context = self.get_sbom_context(self.problem.get("component", ""))
-        
-        # Format prompt with gathered context
-        formatted_prompt = prompt_data["prompt_template"].format(
-            vulnerability=json.dumps(self.problem, indent=2),
-            code_context=code_context,
-            sbom_context=json.dumps(sbom_context, indent=2)
-        )
-        
-        # Query AI with error handling
-        try:
             response = query_model(
                 self.ai_client,
-                formatted_prompt,
-                system_context=prompt_data["system_context"],
+                force_prompt,
+                system_context=None,
                 config=self.config
             )
             
-            # Validate and parse response with fallback
-            required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
-            return self._validate_and_fallback(response, required_fields)
-            
+            tool_call = json.loads(response.strip())
+            if tool_call.get("tool") == "provide_analysis":
+                return tool_call.get("parameters", self._create_fallback_response("Max iterations"))
+        except:
+            pass
+        
+        return self._create_fallback_response(
+            f"Max iterations ({max_iterations}) reached without conclusion"
+        )
+    
+    def analyze_vulnerability(self) -> Dict[str, Any]:
+        """Analyze a security vulnerability using agentic loop with tools."""
+        prompt_data = self.prompts["vulnerability_analysis"]
+        
+        # Generate full tools documentation
+        tools_documentation = format_tools_for_prompt()
+        
+        # Format prompt
+        formatted_prompt = prompt_data["prompt_template"].format(
+            vulnerability=json.dumps(self.problem, indent=2),
+            tools_documentation=tools_documentation
+        )
+        
+        # Run agentic loop
+        try:
+            return self._run_agentic_loop(
+                formatted_prompt,
+                prompt_data["system_context"],
+                max_iterations=self.max_iterations
+            )
         except Exception as e:
             print(f"Error during vulnerability analysis: {str(e)}")
             return self._create_fallback_response(str(e))
     
     def analyze_code_quality(self) -> Dict[str, Any]:
-        """Analyze a code quality issue."""
-        # Get code quality prompt template
+        """Analyze a code quality issue using agentic loop with tools."""
         prompt_data = self.prompts["code_quality_analysis"]
         
-        # Gather context
-        code_context = self.get_code_context(
-            self.problem["component"],
-            self.problem.get("line")
-        )
+        # Generate full tools documentation
+        tools_documentation = format_tools_for_prompt()
         
-        project_context = {
-            "file": self.problem["component"],
-            "line": self.problem.get("line"),
-            "type": self.problem.get("type"),
-            "severity": self.problem.get("severity")
-        }
-        
-        # Format prompt with gathered context
+        # Format prompt
         formatted_prompt = prompt_data["prompt_template"].format(
             issue=json.dumps(self.problem, indent=2),
-            code_context=code_context,
-            project_context=json.dumps(project_context, indent=2)
+            file_path=self.problem.get("component", "unknown"),
+            line_number=self.problem.get("line", "N/A"),
+            issue_type=self.problem.get("type", "unknown"),
+            severity=self.problem.get("severity", "unknown"),
+            tools_documentation=tools_documentation
         )
         
-        # Query AI with error handling
+        # Run agentic loop
         try:
-            response = query_model(
-                self.ai_client,
+            return self._run_agentic_loop(
                 formatted_prompt,
-                system_context=prompt_data["system_context"],
-                config=self.config
+                prompt_data["system_context"],
+                max_iterations=self.max_iterations
             )
-            
-            # Validate and parse response with fallback
-            required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
-            return self._validate_and_fallback(response, required_fields)
-            
         except Exception as e:
             print(f"Error during code quality analysis: {str(e)}")
             return self._create_fallback_response(str(e))
     
     def analyze_dependency(self) -> Dict[str, Any]:
-        """Analyze a dependency issue."""
-        # Get dependency prompt template
+        """Analyze a dependency issue using agentic loop with tools."""
         prompt_data = self.prompts["dependency_analysis"]
         
-        # Gather context
-        usage_context = self.get_code_context(self.problem["component"])
-        sbom_context = self.get_sbom_context(self.problem["component"])
+        # Generate full tools documentation
+        tools_documentation = format_tools_for_prompt()
         
-        # Format prompt with gathered context
+        # Format prompt
         formatted_prompt = prompt_data["prompt_template"].format(
             dependency=json.dumps(self.problem, indent=2),
-            usage_context=usage_context,
-            sbom_context=json.dumps(sbom_context, indent=2)
+            tools_documentation=tools_documentation
         )
         
-        # Query AI with error handling
+        # Run agentic loop
         try:
-            response = query_model(
-                self.ai_client,
+            return self._run_agentic_loop(
                 formatted_prompt,
-                system_context=prompt_data["system_context"],
-                config=self.config
+                prompt_data["system_context"],
+                max_iterations=self.max_iterations
             )
-            
-            # For dependency analysis, the required fields might differ slightly
-            # but we'll use the same basic structure for consistency
-            required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
-            return self._validate_and_fallback(response, required_fields)
-            
         except Exception as e:
             print(f"Error during dependency analysis: {str(e)}")
             return self._create_fallback_response(str(e))
@@ -344,10 +434,12 @@ class AgentSystem:
         self,
         workspace_root: Path,
         input_dir: Path,
-        config_dir: Path
+        config_dir: Path,
+        max_iterations: int = 5
     ):
         self.workspace_root = workspace_root
         self.input_dir = input_dir
+        self.max_iterations = max_iterations
         
         # Load AI config
         with open(config_dir / "ai_config.json") as f:
@@ -369,7 +461,8 @@ class AgentSystem:
                 self.workspace_root,
                 self.input_dir,
                 self.ai_client,
-                self.config
+                self.config,
+                max_iterations=self.max_iterations
             )
             try:
                 result = agent.analyze()

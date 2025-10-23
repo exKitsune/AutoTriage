@@ -9,6 +9,11 @@ on:
         description: "Subfolder path to scan (e.g. container_security)"
         required: true
         type: string
+      max_iterations:
+        description: "Maximum tool calls AI can make per issue (default: 5)"
+        required: false
+        type: number
+        default: 5
 
 jobs:
   validate:
@@ -204,7 +209,7 @@ jobs:
         id: analyze
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: python _AutoTriageScripts/analyze_dependencies.py ${{ github.event.inputs.subfolder }}  --sonarqube --dependency-check
+        run: python _AutoTriageScripts/analyze_dependencies.py ${{ github.event.inputs.subfolder }} --sonarqube --dependency-check --max-iterations ${{ github.event.inputs.max_iterations || 5 }}
 
       - name: Upload Aggregated Analysis
         uses: actions/upload-artifact@v4

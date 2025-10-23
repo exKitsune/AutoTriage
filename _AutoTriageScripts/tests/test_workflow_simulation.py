@@ -15,8 +15,9 @@ def test_workflow_simulation():
     print("Workflow Simulation Test")
     print("=" * 60 + "\n")
     
-    # Setup paths
-    project_root = Path(__file__).parent.parent
+    # Setup paths  
+    # Tests are in _AutoTriageScripts/tests/, so go up to repo root
+    project_root = Path(__file__).parent.parent.parent
     example_input = project_root / "_example_output"
     test_output = project_root / "test-analysis-outputs"
     
@@ -24,7 +25,8 @@ def test_workflow_simulation():
     test_output.mkdir(exist_ok=True)
     
     # Import the main function
-    sys.path.insert(0, str(Path(__file__).parent))
+    # (tests are in tests/ subdirectory, modules are in parent)
+    sys.path.insert(0, str(Path(__file__).parent.parent))
     from analyze_dependencies import collect_problems, parse_arguments
     from analysis_agent import AgentSystem
     

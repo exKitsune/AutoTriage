@@ -33,6 +33,7 @@ class AnalysisResult:
     recommended_actions: List[str]
     evidence: Dict[str, Any]
     analysis_steps: List[Dict[str, Any]]  # Track the analysis process
+    reasoning: str = ""  # LLM's accumulated reasoning/thought process during analysis
 
 class AnalysisAgent:
     """Agent responsible for analyzing a single security/quality problem."""
@@ -95,7 +96,7 @@ class AnalysisAgent:
             data = json.loads(response)
         except json.JSONDecodeError as e:
             print(f"Warning: Failed to parse AI response as JSON: {str(e)}")
-            print(f"Response preview: {response[:200]}...")
+            print(f"Response: {response}...")
             return self._create_fallback_response(
                 error="Failed to parse AI response as JSON",
                 raw_response=response
@@ -177,6 +178,7 @@ class AnalysisAgent:
         print(f"{'='*60}\n")
         
         conversation_history = []
+        accumulated_reasoning = []  # Track reasoning from record_reasoning calls
         
         # Build initial messages
         messages = [
@@ -196,7 +198,7 @@ class AnalysisAgent:
                 # Query the LLM
                 print(f"  Querying LLM...")
                 print(f"  System context: {system_context if iteration == 0 else 'None'}")
-                print(f"  Message content: {messages[-1]['content'][:200]}...")
+                print(f"  Message content: {messages[-1]['content']}...")
                 response = query_model(
                     self.ai_client,
                     messages[-1]["content"],  # Last message
@@ -205,92 +207,107 @@ class AnalysisAgent:
                 )
                 
                 # Try to parse as JSON tool call
-                try:
-                    tool_call = json.loads(response.strip())
-                    
-                    # Validate it has the right structure
-                    if not isinstance(tool_call, dict) or "tool" not in tool_call:
-                        # Not a valid tool call format
-                        print(f"  ❌ ERROR: LLM response not in tool format")
-                        print(f"  Response preview: {response[:200]}")
-                        return self._create_fallback_response(
-                            "LLM did not provide valid tool call format",
-                            response
-                        )
-                    
-                    tool_name = tool_call["tool"]
-                    parameters = tool_call.get("parameters", {})
-                    
-                    print(f"  LLM called tool: {tool_name}")
-                    print(f"  Parameters: {json.dumps(parameters, indent=4)}")
-                    
-                    # Check if this is the final analysis
-                    if tool_name == "provide_analysis":
-                        print(f"\n  ✅ ANALYSIS COMPLETE")
-                        print(f"  Is Applicable: {parameters.get('is_applicable', 'N/A')}")
-                        print(f"  Confidence: {parameters.get('confidence', 'N/A')}")
-                        print(f"  Explanation: {parameters.get('explanation', 'N/A')[:100]}...")
-                        print(f"{'='*60}\n")
-                        
-                        self.analysis_steps.append({
-                            "step": iteration + 1,
-                            "action": "received_analysis",
-                            "tool": tool_name,
-                            "result": "Analysis complete"
-                        })
-                        
-                        # Validate the analysis has required fields
-                        required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
-                        for field in required_fields:
-                            if field not in parameters:
-                                parameters[field] = self._create_fallback_response(
-                                    f"Missing field in analysis: {field}"
-                                )[field]
-                        
-                        return parameters
-                    
-                    # Execute the tool
-                    self.analysis_steps.append({
-                        "step": iteration + 1,
-                        "action": "executing_tool",
-                        "tool": tool_name,
-                        "parameters": parameters
-                    })
-                    
-                    tool_result = self._execute_tool(tool_name, parameters)
-                    
-                    print(f"  Tool result: {json.dumps(tool_result, indent=4)[:200]}...")
-                    if tool_result.get("error"):
-                        print(f"  ⚠️  Tool returned error: {tool_result['error']}")
-                    elif tool_result.get("success") is False:
-                        print(f"  ⚠️  Tool failed")
-                    else:
-                        print(f"  ✓ Tool executed successfully")
-                    print()
-                    
-                    self.analysis_steps.append({
-                        "step": iteration + 1,
-                        "action": "tool_result",
-                        "tool": tool_name,
-                        "result": tool_result
-                    })
-                    
-                    # Add to conversation
-                    messages.append({"role": "assistant", "content": response})
-                    messages.append({
-                        "role": "user",
-                        "content": f"Tool result:\n{json.dumps(tool_result, indent=2)}\n\nWhat would you like to do next? (Call another tool or provide_analysis)"
-                    })
-                    
-                except json.JSONDecodeError:
-                    # Response is not JSON - treat as malformed
-                    print(f"  ❌ ERROR: LLM response is not valid JSON")
-                    print(f"  Response preview: {response[:200]}")
+                tool_call = json.loads(response.strip())
+                
+                # Validate it has the right structure
+                if not isinstance(tool_call, dict) or "tool" not in tool_call:
+                    # Not a valid tool call format
+                    print(f"  ❌ ERROR: LLM response not in tool format")
+                    print(f"  Response: {response}")
                     return self._create_fallback_response(
-                        "LLM response was not valid JSON",
+                        "LLM did not provide valid tool call format",
                         response
                     )
+                
+                tool_name = tool_call["tool"]
+                parameters = tool_call.get("parameters", {})
+                
+                # Extract reasoning from any tool call (optional field)
+                reasoning = tool_call.get("reasoning", "")
+                if reasoning:
+                    accumulated_reasoning.append(reasoning)
+                    print(f"  💭 Reasoning: {reasoning[:100]}...")
+                
+                print(f"  LLM called tool: {tool_name}")
+                print(f"  Parameters: {json.dumps(parameters, indent=4)}")
+                
+                # Check if this is the final analysis
+                if tool_name == "provide_analysis":
+                    print(f"\n  ✅ ANALYSIS COMPLETE")
+                    print(f"  Is Applicable: {parameters.get('is_applicable', 'N/A')}")
+                    print(f"  Confidence: {parameters.get('confidence', 'N/A')}")
+                    print(f"  Explanation: {parameters.get('explanation', 'N/A')[:100]}...")
+                    if accumulated_reasoning:
+                        print(f"  Accumulated Reasoning Steps: {len(accumulated_reasoning)}")
+                    print(f"{'='*60}\n")
                     
+                    self.analysis_steps.append({
+                        "step": iteration + 1,
+                        "action": "received_analysis",
+                        "tool": tool_name,
+                        "result": "Analysis complete"
+                    })
+                    
+                    # Validate the analysis has required fields
+                    required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
+                    for field in required_fields:
+                        if field not in parameters:
+                            parameters[field] = self._create_fallback_response(
+                                f"Missing field in analysis: {field}"
+                            )[field]
+                    
+                    # Add accumulated reasoning to the result
+                    if accumulated_reasoning:
+                        parameters["reasoning"] = "\n".join([
+                            f"[Step {i+1}] {thought}" 
+                            for i, thought in enumerate(accumulated_reasoning)
+                        ])
+                    else:
+                        parameters["reasoning"] = ""
+                    
+                    return parameters
+                
+                # Execute the tool
+                self.analysis_steps.append({
+                    "step": iteration + 1,
+                    "action": "executing_tool",
+                    "tool": tool_name,
+                    "parameters": parameters
+                })
+                
+                tool_result = self._execute_tool(tool_name, parameters)
+                
+                print(f"  Tool result: {json.dumps(tool_result, indent=4)}...")
+                if tool_result.get("error"):
+                    print(f"  ⚠️  Tool returned error: {tool_result['error']}")
+                elif tool_result.get("success") is False:
+                    print(f"  ⚠️  Tool failed")
+                else:
+                    print(f"  ✓ Tool executed successfully")
+                print()
+                
+                self.analysis_steps.append({
+                    "step": iteration + 1,
+                    "action": "tool_result",
+                    "tool": tool_name,
+                    "result": tool_result
+                })
+                
+                # Add to conversation
+                messages.append({"role": "assistant", "content": response})
+                messages.append({
+                    "role": "user",
+                    "content": f"Tool result:\n{json.dumps(tool_result, indent=2)}\n\nWhat would you like to do next? (Call another tool or provide_analysis)"
+                })
+                
+            except json.JSONDecodeError:
+                # Response is not JSON - treat as malformed
+                print(f"  ❌ ERROR: LLM response is not valid JSON")
+                print(f"  Response preview: {response[:200]}")
+                return self._create_fallback_response(
+                    "LLM response was not valid JSON",
+                    response
+                )
             except Exception as e:
                 print(f"  ❌ ERROR in agentic loop: {str(e)}")
                 return self._create_fallback_response(f"Loop error: {str(e)}")
@@ -320,13 +337,31 @@ class AnalysisAgent:
             
             tool_call = json.loads(response.strip())
             if tool_call.get("tool") == "provide_analysis":
-                return tool_call.get("parameters", self._create_fallback_response("Max iterations"))
+                result = tool_call.get("parameters", self._create_fallback_response("Max iterations"))
+                # Add accumulated reasoning
+                if accumulated_reasoning:
+                    result["reasoning"] = "\n".join([
+                        f"[Step {i+1}] {thought}" 
+                        for i, thought in enumerate(accumulated_reasoning)
+                    ])
+                else:
+                    result["reasoning"] = ""
+                return result
         except:
             pass
         
-        return self._create_fallback_response(
+        fallback = self._create_fallback_response(
             f"Max iterations ({max_iterations}) reached without conclusion"
         )
+        # Add accumulated reasoning to fallback
+        if accumulated_reasoning:
+            fallback["reasoning"] = "\n".join([
+                f"[Step {i+1}] {thought}" 
+                for i, thought in enumerate(accumulated_reasoning)
+            ])
+        else:
+            fallback["reasoning"] = ""
+        return fallback
     
     def analyze_vulnerability(self) -> Dict[str, Any]:
         """Analyze a security vulnerability using agentic loop with tools."""
@@ -426,6 +461,11 @@ class AnalysisAgent:
             # conservative defaults (not applicable, 0 confidence)
             
             # Create result (analysis now always has required fields due to fallback)
+            # Include reasoning in evidence if provided
+            evidence = analysis.get("evidence", {})
+            if analysis.get("reasoning"):
+                evidence["reasoning"] = analysis.get("reasoning")
+            
             result = AnalysisResult(
                 problem_id=self.problem.get("id", "unknown"),
                 is_applicable=analysis.get("is_applicable", False),
@@ -433,8 +473,9 @@ class AnalysisAgent:
                 explanation=analysis.get("explanation", "Analysis unavailable"),
                 severity=self.problem.get("severity", "UNKNOWN"),
                 recommended_actions=analysis.get("recommended_actions", ["Manual review required"]),
-                evidence=analysis.get("evidence", {}),
-                analysis_steps=self.analysis_steps
+                evidence=evidence,
+                analysis_steps=self.analysis_steps,
+                reasoning=analysis.get("reasoning", "")
             )
             
             # Set state based on whether there was an error
@@ -458,7 +499,8 @@ class AnalysisAgent:
                 severity=self.problem.get("severity", "UNKNOWN"),
                 recommended_actions=["Manual review required - analysis pipeline failed"],
                 evidence={"critical_error": str(e)},
-                analysis_steps=self.analysis_steps
+                analysis_steps=self.analysis_steps,
+                reasoning=""
             )
 
 class AgentSystem:
@@ -523,7 +565,8 @@ class AgentSystem:
                     "severity": r.severity,
                     "recommended_actions": r.recommended_actions,
                     "evidence": r.evidence,
-                    "analysis_steps": r.analysis_steps
+                    "analysis_steps": r.analysis_steps,
+                    "reasoning": r.reasoning
                 }
                 for r in self.results
             ]

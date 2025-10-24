@@ -284,7 +284,7 @@
         },
         "explanation": {
           "type": "string",
-          "description": "Detailed explanation of your reasoning and what evidence you found",
+          "description": "Detailed explanation of your reasoning and what evidence you found (this will be shown to users)",
           "required": true
         },
         "evidence": {
@@ -332,9 +332,10 @@
     "description": "When you want to use a tool, respond with ONLY a JSON object in this exact format",
     "format": {
       "tool": "string - name of the tool from the list above",
-      "parameters": "object - parameters required by the tool"
+      "parameters": "object - parameters required by the tool",
+      "reasoning": "string (OPTIONAL) - your internal thoughts/reasoning for this step. This is for your own use and will be saved but not used by the system. Use it as a scratchpad to organize your thinking."
     },
-    "example": "{\n  \"tool\": \"search_code\",\n  \"parameters\": {\n    \"pattern\": \"import yaml\",\n    \"file_glob\": \"*.py\"\n  }\n}"
+    "example": "{\n  \"tool\": \"search_code\",\n  \"parameters\": {\n    \"pattern\": \"import yaml\",\n    \"file_glob\": \"*.py\"\n  },\n  \"reasoning\": \"Checking if yaml package is actually imported in the codebase\"\n}"
   },
   "important_notes": [
     "You can only call ONE tool per message",

@@ -71,6 +71,10 @@ class ToolExecutor:
         if not file_path:
             return {"success": False, "error": "file_path parameter required"}
         
+        # Strip SonarQube project prefix (e.g., "AutoTriage:path" → "path")
+        if ':' in file_path and ('/' in file_path or '\\' in file_path):
+            file_path = file_path.split(':', 1)[1]
+        
         try:
             full_path = self.workspace_root / file_path
             
@@ -111,6 +115,10 @@ class ToolExecutor:
                 "success": False,
                 "error": "file_path, start_line, and end_line parameters required"
             }
+        
+        # Strip SonarQube project prefix (e.g., "AutoTriage:path" → "path")
+        if ':' in file_path and ('/' in file_path or '\\' in file_path):
+            file_path = file_path.split(':', 1)[1]
         
         try:
             full_path = self.workspace_root / file_path

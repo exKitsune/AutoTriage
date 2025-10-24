@@ -72,7 +72,8 @@ class AnalysisAgent:
             if not method:
                 return {"error": f"Unknown tool: {tool_name}"}
             
-            return method(**parameters)
+            # Tool methods expect a single params dict argument
+            return method(parameters)
         except TypeError as e:
             return {"error": f"Invalid parameters for {tool_name}: {str(e)}"}
         except Exception as e:
@@ -170,6 +171,11 @@ class AnalysisAgent:
         Returns:
             Analysis result dict with is_applicable, confidence, explanation, etc.
         """
+        print(f"\n{'='*60}")
+        print(f"Starting agentic analysis (max {max_iterations} iterations)")
+        print(f"Problem: {self.problem.get('id', 'unknown')}")
+        print(f"{'='*60}\n")
+        
         conversation_history = []
         
         # Build initial messages
@@ -179,6 +185,7 @@ class AnalysisAgent:
         ]
         
         for iteration in range(max_iterations):
+            print(f"[Iteration {iteration + 1}/{max_iterations}]")
             self.analysis_steps.append({
                 "step": iteration + 1,
                 "action": "querying_llm",
@@ -187,6 +194,9 @@ class AnalysisAgent:
             
             try:
                 # Query the LLM
+                print(f"  Querying LLM...")
+                print(f"  System context: {system_context if iteration == 0 else 'None'}")
+                print(f"  Message content: {messages[-1]['content'][:200]}...")
                 response = query_model(
                     self.ai_client,
                     messages[-1]["content"],  # Last message
@@ -201,7 +211,8 @@ class AnalysisAgent:
                     # Validate it has the right structure
                     if not isinstance(tool_call, dict) or "tool" not in tool_call:
                         # Not a valid tool call format
-                        print(f"Warning: LLM response not in tool format: {response[:200]}")
+                        print(f"  ❌ ERROR: LLM response not in tool format")
+                        print(f"  Response preview: {response[:200]}")
                         return self._create_fallback_response(
                             "LLM did not provide valid tool call format",
                             response
@@ -210,8 +221,17 @@ class AnalysisAgent:
                     tool_name = tool_call["tool"]
                     parameters = tool_call.get("parameters", {})
                     
+                    print(f"  LLM called tool: {tool_name}")
+                    print(f"  Parameters: {json.dumps(parameters, indent=4)}")
+                    
                     # Check if this is the final analysis
                     if tool_name == "provide_analysis":
+                        print(f"\n  ✅ ANALYSIS COMPLETE")
+                        print(f"  Is Applicable: {parameters.get('is_applicable', 'N/A')}")
+                        print(f"  Confidence: {parameters.get('confidence', 'N/A')}")
+                        print(f"  Explanation: {parameters.get('explanation', 'N/A')[:100]}...")
+                        print(f"{'='*60}\n")
+                        
                         self.analysis_steps.append({
                             "step": iteration + 1,
                             "action": "received_analysis",
@@ -239,6 +259,15 @@ class AnalysisAgent:
                     
                     tool_result = self._execute_tool(tool_name, parameters)
                     
+                    print(f"  Tool result: {json.dumps(tool_result, indent=4)[:200]}...")
+                    if tool_result.get("error"):
+                        print(f"  ⚠️  Tool returned error: {tool_result['error']}")
+                    elif tool_result.get("success") is False:
+                        print(f"  ⚠️  Tool failed")
+                    else:
+                        print(f"  ✓ Tool executed successfully")
+                    print()
+                    
                     self.analysis_steps.append({
                         "step": iteration + 1,
                         "action": "tool_result",
@@ -255,17 +284,22 @@ class AnalysisAgent:
                     
                 except json.JSONDecodeError:
                     # Response is not JSON - treat as malformed
-                    print(f"Warning: LLM response is not valid JSON: {response[:200]}")
+                    print(f"  ❌ ERROR: LLM response is not valid JSON")
+                    print(f"  Response preview: {response[:200]}")
                     return self._create_fallback_response(
                         "LLM response was not valid JSON",
                         response
                     )
                     
             except Exception as e:
-                print(f"Error in agentic loop iteration {iteration + 1}: {str(e)}")
+                print(f"  ❌ ERROR in agentic loop: {str(e)}")
                 return self._create_fallback_response(f"Loop error: {str(e)}")
         
         # Max iterations reached
+        print(f"\n⚠️  MAX ITERATIONS REACHED ({max_iterations})")
+        print(f"  Forcing conclusion...")
+        print()
+        
         self.analysis_steps.append({
             "step": max_iterations,
             "action": "max_iterations_reached",

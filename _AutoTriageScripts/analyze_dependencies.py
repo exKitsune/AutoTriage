@@ -245,7 +245,10 @@ def main():
             "raw_data": p.raw_data
         } for p in problems], f, indent=2)
     
-    print(f"\nFound {len(problems)} potential issues. Starting detailed analysis...")
+    print(f"\nFound {len(problems)} potential issues.")
+    print(f"{'='*80}")
+    print(f"Starting detailed AI-powered analysis...")
+    print(f"{'='*80}\n")
     
     # Initialize the agent system
     from analysis_agent import AgentSystem
@@ -268,12 +271,16 @@ def main():
         results = agent_system.analyze_problems(problems_as_dicts)
         agent_system.generate_report(output_dir)
         
-        print("\nAnalysis complete!")
+        print(f"\n{'='*80}")
+        print("✅ ANALYSIS COMPLETE")
+        print(f"{'='*80}")
         print(f"Total issues analyzed: {len(problems)}")
         print(f"Issues requiring attention: {sum(1 for r in results if r.is_applicable)}")
-        print("\nResults have been written to:")
-        print(f"  {output_dir / 'analysis_report.json'}")
-        print(f"  {output_dir / 'analysis_summary.md'}")
+        print(f"Issues dismissed: {sum(1 for r in results if not r.is_applicable)}")
+        print(f"\nResults written to:")
+        print(f"  📄 {output_dir / 'analysis_report.json'}")
+        print(f"  📋 {output_dir / 'analysis_summary.md'}")
+        print(f"{'='*80}\n")
         
     except Exception as e:
         print(f"Error during analysis: {str(e)}")

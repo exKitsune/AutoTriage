@@ -1,8 +1,7 @@
 # Security and Quality Analysis Summary
 
 Total problems analyzed: 3
-Applicable problems: 1
+Applicable problems: 0
 
 ## Problems by Severity
 
-- HIGH: 1

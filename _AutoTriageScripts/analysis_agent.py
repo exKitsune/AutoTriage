@@ -197,12 +197,11 @@ class AnalysisAgent:
             try:
                 # Query the LLM
                 print(f"  Querying LLM...")
-                print(f"  System context: {'Provided' if system_context else 'None'}")
-                print(f"  Message content: {messages[-1]['content']}...")
+                print(f"  Messages in history: {len(messages)}")
+                print(f"  Last message preview: {messages[-1]['content'][:200]}...")
                 response = query_model(
                     self.ai_client,
-                    messages[-1]["content"],  # Last message
-                    system_context=system_context,  # Always provide system context
+                    messages=messages,  # Pass full conversation history
                     config=self.config
                 )
                 
@@ -233,6 +232,47 @@ class AnalysisAgent:
                 
                 # Check if this is the final analysis
                 if tool_name == "provide_analysis":
+                    # First validate required fields are present
+                    required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
+                    missing_fields = [f for f in required_fields if f not in parameters]
+                    
+                    # Check for common mistakes in parameter names
+                    wrong_names = {
+                        "vulnerability_applicable": "is_applicable",
+                        "applicable": "is_applicable",
+                        "conclusion": "explanation",
+                        "reasoning": "explanation",
+                        "actions": "recommended_actions"
+                    }
+                    
+                    if missing_fields:
+                        # Try to auto-correct common mistakes
+                        corrected = False
+                        for wrong, correct in wrong_names.items():
+                            if wrong in parameters and correct in missing_fields:
+                                parameters[correct] = parameters.pop(wrong)
+                                corrected = True
+                                print(f"  ⚠️  Auto-corrected parameter: {wrong} → {correct}")
+                        
+                        # If still missing fields after correction, return error to AI
+                        missing_fields = [f for f in required_fields if f not in parameters]
+                        if missing_fields:
+                            error_msg = {
+                                "error": f"provide_analysis missing required fields: {', '.join(missing_fields)}",
+                                "required_fields": required_fields,
+                                "your_fields": list(parameters.keys()),
+                                "note": "Please call provide_analysis again with ALL required fields"
+                            }
+                            print(f"  ❌ ERROR: Missing required fields: {missing_fields}")
+                            
+                            # Give AI another chance
+                            messages.append({"role": "assistant", "content": response})
+                            messages.append({
+                                "role": "user",
+                                "content": f"Tool error:\n{json.dumps(error_msg, indent=2)}\n\nCall provide_analysis again with the EXACT required fields: {', '.join(required_fields)}"
+                            })
+                            continue  # Go to next iteration
+                    
                     print(f"\n  ✅ ANALYSIS COMPLETE")
                     print(f"  Is Applicable: {parameters.get('is_applicable', 'N/A')}")
                     print(f"  Confidence: {parameters.get('confidence', 'N/A')}")
@@ -247,14 +287,6 @@ class AnalysisAgent:
                         "tool": tool_name,
                         "result": "Analysis complete"
                     })
-                    
-                    # Validate the analysis has required fields
-                    required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
-                    for field in required_fields:
-                        if field not in parameters:
-                            parameters[field] = self._create_fallback_response(
-                                f"Missing field in analysis: {field}"
-                            )[field]
                     
                     # Add accumulated reasoning to the result
                     if accumulated_reasoning:
@@ -278,7 +310,26 @@ class AnalysisAgent:
                 tool_result = self._execute_tool(tool_name, parameters)
                 
                 print(f"  Tool result: {json.dumps(tool_result, indent=4)}...")
-                if tool_result.get("error"):
+                
+                # Check if tool doesn't exist and provide helpful guidance
+                if tool_result.get("error") and "Unknown tool" in tool_result["error"]:
+                    print(f"  ❌ ERROR: Tool '{tool_name}' does not exist")
+                    available_tools = ["read_file", "read_file_lines", "search_code", "list_directory", 
+                                     "find_files", "search_sbom", "check_import_usage", "provide_analysis"]
+                    error_msg = {
+                        "error": f"Tool '{tool_name}' does not exist",
+                        "available_tools": available_tools,
+                        "note": "If you have gathered enough information, call provide_analysis to conclude. Otherwise, use one of the available tools listed above."
+                    }
+                    
+                    # Give AI guidance
+                    messages.append({"role": "assistant", "content": response})
+                    messages.append({
+                        "role": "user",
+                        "content": f"Tool error:\n{json.dumps(error_msg, indent=2)}\n\nAvailable tools: {', '.join(available_tools)}\n\nIf you have enough information to make a determination, call provide_analysis. Otherwise, choose an available tool."
+                    })
+                    continue  # Go to next iteration
+                elif tool_result.get("error"):
                     print(f"  ⚠️  Tool returned error: {tool_result['error']}")
                 elif tool_result.get("success") is False:
                     print(f"  ⚠️  Tool failed")
@@ -330,8 +381,7 @@ class AnalysisAgent:
             
             response = query_model(
                 self.ai_client,
-                force_prompt,
-                system_context=system_context,
+                messages=messages,  # Pass full conversation history
                 config=self.config
             )
             

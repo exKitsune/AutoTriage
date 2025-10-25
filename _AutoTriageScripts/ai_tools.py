@@ -2,7 +2,7 @@
 
 import os
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from openai import OpenAI
 
 def get_ai_client(config: Dict[str, Any]) -> OpenAI:
@@ -15,21 +15,23 @@ def get_ai_client(config: Dict[str, Any]) -> OpenAI:
 
 def query_model(
     client: OpenAI,
-    prompt: str,
+    prompt: str = None,
     model: Optional[str] = None,
     system_context: Optional[str] = None,
-    config: Optional[Dict[str, Any]] = None
+    config: Optional[Dict[str, Any]] = None,
+    messages: Optional[List[Dict[str, str]]] = None
 ) -> str:
     """
-    Send a single prompt to the AI model and get the response.
+    Send a prompt or message history to the AI model and get the response.
     Includes retry logic for transient failures.
     
     Args:
         client: OpenAI client instance
-        prompt: The user prompt to send
+        prompt: The user prompt to send (legacy single-turn mode)
         model: Optional model override, otherwise uses config default
-        system_context: Optional system context message
+        system_context: Optional system context message (legacy single-turn mode)
         config: AI configuration for default model selection
+        messages: Optional full message history for multi-turn conversations
     
     Returns:
         The model's response text
@@ -41,11 +43,15 @@ def query_model(
     if config is None:
         config = {}
     
-    messages = []
-    if system_context:
-        messages.append({"role": "system", "content": system_context})
-    
-    messages.append({"role": "user", "content": prompt})
+    # Use provided messages if available (multi-turn), otherwise build from prompt (single-turn)
+    if messages is None:
+        messages = []
+        if system_context:
+            messages.append({"role": "system", "content": system_context})
+        
+        if prompt:
+            messages.append({"role": "user", "content": prompt})
+    # else: use the provided messages list as-is
     
     # Use specified model or default from config
     model_name = model or config.get("ai_providers", {}).get("openrouter", {}).get("models", {}).get("default")

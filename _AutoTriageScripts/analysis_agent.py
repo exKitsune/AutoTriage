@@ -151,7 +151,7 @@ class AnalysisAgent:
             "is_applicable": False,  # Conservative: assume not applicable on error
             "confidence": 0.0,
             "explanation": f"Analysis failed: {error}. Manual review recommended.",
-            "evidence": {"error": error, "raw_response": raw_response[:500] if raw_response else ""},
+            "evidence": {"error": error, "raw_response": raw_response if raw_response else ""},
             "recommended_actions": ["Manual review required due to analysis failure"]
         }
     
@@ -197,12 +197,12 @@ class AnalysisAgent:
             try:
                 # Query the LLM
                 print(f"  Querying LLM...")
-                print(f"  System context: {system_context if iteration == 0 else 'None'}")
+                print(f"  System context: {'Provided' if system_context else 'None'}")
                 print(f"  Message content: {messages[-1]['content']}...")
                 response = query_model(
                     self.ai_client,
                     messages[-1]["content"],  # Last message
-                    system_context=system_context if iteration == 0 else None,
+                    system_context=system_context,  # Always provide system context
                     config=self.config
                 )
                 
@@ -226,7 +226,7 @@ class AnalysisAgent:
                 reasoning = tool_call.get("reasoning", "")
                 if reasoning:
                     accumulated_reasoning.append(reasoning)
-                    print(f"  💭 Reasoning: {reasoning[:100]}...")
+                    print(f"  💭 Reasoning: {reasoning}...")
                 
                 print(f"  LLM called tool: {tool_name}")
                 print(f"  Parameters: {json.dumps(parameters, indent=4)}")
@@ -236,7 +236,7 @@ class AnalysisAgent:
                     print(f"\n  ✅ ANALYSIS COMPLETE")
                     print(f"  Is Applicable: {parameters.get('is_applicable', 'N/A')}")
                     print(f"  Confidence: {parameters.get('confidence', 'N/A')}")
-                    print(f"  Explanation: {parameters.get('explanation', 'N/A')[:100]}...")
+                    print(f"  Explanation: {parameters.get('explanation', 'N/A')}...")
                     if accumulated_reasoning:
                         print(f"  Accumulated Reasoning Steps: {len(accumulated_reasoning)}")
                     print(f"{'='*60}\n")
@@ -297,13 +297,13 @@ class AnalysisAgent:
                 messages.append({"role": "assistant", "content": response})
                 messages.append({
                     "role": "user",
-                    "content": f"Tool result:\n{json.dumps(tool_result, indent=2)}\n\nWhat would you like to do next? (Call another tool or provide_analysis)"
+                    "content": f"Tool result:\n{json.dumps(tool_result, indent=2)}\n\nRespond with your next tool call in JSON format. Call another investigation tool or provide_analysis to conclude."
                 })
                 
             except json.JSONDecodeError:
                 # Response is not JSON - treat as malformed
                 print(f"  ❌ ERROR: LLM response is not valid JSON")
-                print(f"  Response preview: {response[:200]}")
+                print(f"  Response preview: {response}")
                 return self._create_fallback_response(
                     "LLM response was not valid JSON",
                     response
@@ -325,13 +325,13 @@ class AnalysisAgent:
         
         # Try to force a conclusion by asking directly
         try:
-            force_prompt = "You have reached the maximum number of tool calls. Based on the information you've gathered, provide your final analysis using the provide_analysis tool."
+            force_prompt = "You have reached the maximum number of tool calls. Based on the information you've gathered, provide your final analysis using the provide_analysis tool. Respond with ONLY the JSON tool call, no other text."
             messages.append({"role": "user", "content": force_prompt})
             
             response = query_model(
                 self.ai_client,
                 force_prompt,
-                system_context=None,
+                system_context=system_context,
                 config=self.config
             )
             

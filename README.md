@@ -60,6 +60,7 @@ The AI agent has access to these tools:
 - Python 3.8+
 - GitHub Actions environment (or Linux for local testing)
 - OpenRouter API key (for AI model access)
+- (Optional) Syft or Trivy for SBOM generation - see [SBOM Guide](_AutoTriageScripts/SBOM_GUIDE.md)
 
 ### GitHub Secrets
 

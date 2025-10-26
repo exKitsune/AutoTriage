@@ -177,7 +177,7 @@ class AnalysisAgent:
         print(f"Problem: {self.problem.get('id', 'unknown')}")
         print(f"{'='*60}\n")
         
-        conversation_history = []
+        conversation_history = []  # Will store full conversation for debugging
         accumulated_reasoning = []  # Track reasoning from record_reasoning calls
         
         # Build initial messages
@@ -197,8 +197,15 @@ class AnalysisAgent:
             try:
                 # Query the LLM
                 print(f"  Querying LLM...")
-                print(f"  Messages in history: {len(messages)}")
-                print(f"  Last message preview: {messages[-1]['content'][:200]}...")
+                print(f"  Messages in conversation: {len(messages)}")
+                
+                # Show message chain summary
+                for i, msg in enumerate(messages):
+                    role_icon = "🤖" if msg["role"] == "system" else ("👤" if msg["role"] == "user" else "🔧")
+                    content_preview = msg["content"][:100].replace('\n', ' ')
+                    print(f"    [{i+1}] {role_icon} {msg['role']}: {content_preview}...")
+                
+                print(f"  Sending {len(messages)} messages to AI...")
                 response = query_model(
                     self.ai_client,
                     messages=messages,  # Pass full conversation history
@@ -297,6 +304,10 @@ class AnalysisAgent:
                     else:
                         parameters["reasoning"] = ""
                     
+                    # Add conversation history for debugging
+                    parameters["_conversation_history"] = conversation_history
+                    parameters["_final_message_count"] = len(messages)
+                    
                     return parameters
                 
                 # Execute the tool
@@ -351,6 +362,15 @@ class AnalysisAgent:
                     "content": f"Tool result:\n{json.dumps(tool_result, indent=2)}\n\nRespond with your next tool call in JSON format. Call another investigation tool or provide_analysis to conclude."
                 })
                 
+                # Save to conversation history for debugging
+                conversation_history.append({
+                    "iteration": iteration + 1,
+                    "ai_response": response,
+                    "tool_called": tool_name,
+                    "tool_parameters": parameters,
+                    "tool_result": tool_result
+                })
+                
             except json.JSONDecodeError:
                 # Response is not JSON - treat as malformed
                 print(f"  ❌ ERROR: LLM response is not valid JSON")
@@ -396,6 +416,9 @@ class AnalysisAgent:
                     ])
                 else:
                     result["reasoning"] = ""
+                # Add conversation history
+                result["_conversation_history"] = conversation_history
+                result["_final_message_count"] = len(messages)
                 return result
         except:
             pass
@@ -411,6 +434,9 @@ class AnalysisAgent:
             ])
         else:
             fallback["reasoning"] = ""
+        # Add conversation history
+        fallback["_conversation_history"] = conversation_history
+        fallback["_final_message_count"] = len(messages)
         return fallback
     
     def analyze_vulnerability(self) -> Dict[str, Any]:
@@ -489,13 +515,44 @@ class AnalysisAgent:
             print(f"Error during dependency analysis: {str(e)}")
             return self._create_fallback_response(str(e))
     
-    def analyze(self) -> AnalysisResult:
+    def _save_conversation_log(self, conversation_history: list, output_dir: Path = None) -> None:
+        """Save detailed conversation log for debugging."""
+        if not output_dir:
+            return
+            
+        # Create logs directory
+        logs_dir = output_dir / "conversation_logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save conversation log
+        problem_id = self.problem.get('id', 'unknown').replace(':', '_').replace('/', '_')
+        log_file = logs_dir / f"{problem_id}_conversation.json"
+        
+        log_data = {
+            "problem_id": self.problem.get('id', 'unknown'),
+            "problem_type": self.problem.get('type', 'unknown'),
+            "conversation": conversation_history,
+            "final_result": {
+                "analysis_steps_count": len(self.analysis_steps),
+                "iterations_used": len(conversation_history)
+            }
+        }
+        
+        with open(log_file, 'w') as f:
+            json.dump(log_data, f, indent=2)
+        
+        print(f"  💾 Conversation log saved to: {log_file.name}")
+    
+    def analyze(self, output_dir: Path = None) -> AnalysisResult:
         """
         Run the full analysis pipeline.
         Returns an AnalysisResult with the findings.
         
         Even if errors occur, returns a result with fallback values
         and low confidence to enable manual review.
+        
+        Args:
+            output_dir: Optional output directory for saving conversation logs
         """
         try:
             # Analyze based on problem type
@@ -510,11 +567,21 @@ class AnalysisAgent:
             # fallback responses still provide valid structure with
             # conservative defaults (not applicable, 0 confidence)
             
+            # Extract conversation history for logging (if present)
+            conversation_history = analysis.pop("_conversation_history", [])
+            final_message_count = analysis.pop("_final_message_count", 0)
+            
+            # Save conversation log if output_dir provided
+            if output_dir and conversation_history:
+                self._save_conversation_log(conversation_history, output_dir)
+            
             # Create result (analysis now always has required fields due to fallback)
             # Include reasoning in evidence if provided
             evidence = analysis.get("evidence", {})
             if analysis.get("reasoning"):
                 evidence["reasoning"] = analysis.get("reasoning")
+            if final_message_count > 0:
+                evidence["conversation_turns"] = final_message_count
             
             result = AnalysisResult(
                 problem_id=self.problem.get("id", "unknown"),
@@ -576,10 +643,14 @@ class AgentSystem:
         
         self.results = []
     
-    def analyze_problems(self, problems: List[Dict]) -> List[AnalysisResult]:
+    def analyze_problems(self, problems: List[Dict], output_dir: Path = None) -> List[AnalysisResult]:
         """
         Analyze a list of problems using individual agents.
         Returns a list of analysis results.
+        
+        Args:
+            problems: List of problem dicts to analyze
+            output_dir: Optional output directory for conversation logs
         """
         for problem in problems:
             agent = AnalysisAgent(
@@ -591,7 +662,7 @@ class AgentSystem:
                 max_iterations=self.max_iterations
             )
             try:
-                result = agent.analyze()
+                result = agent.analyze(output_dir=output_dir)
                 self.results.append(result)
             except Exception as e:
                 print(f"Error analyzing problem {problem.get('id', 'unknown')}: {str(e)}")
@@ -600,11 +671,18 @@ class AgentSystem:
     
     def generate_report(self, output_dir: Path) -> None:
         """Generate a detailed report of all analysis results."""
+        from datetime import datetime
+        
         report = {
             "summary": {
                 "total_problems": len(self.results),
                 "applicable_problems": sum(1 for r in self.results if r.is_applicable),
                 "by_severity": {}
+            },
+            "analysis_metadata": {
+                "analysis_date": datetime.now().isoformat(),
+                "model_used": self.config.get("ai_providers", {}).get("openrouter", {}).get("models", {}).get("default", "unknown"),
+                "max_iterations_per_issue": self.max_iterations
             },
             "results": [
                 {
@@ -637,9 +715,47 @@ class AgentSystem:
         summary_file = output_dir / "analysis_summary.md"
         with open(summary_file, 'w') as f:
             f.write("# Security and Quality Analysis Summary\n\n")
-            f.write(f"Total problems analyzed: {report['summary']['total_problems']}\n")
-            f.write(f"Applicable problems: {report['summary']['applicable_problems']}\n\n")
+            f.write(f"**Date:** {report.get('analysis_metadata', {}).get('analysis_date', 'N/A')}\n")
+            f.write(f"**Total Issues Analyzed:** {report['summary']['total_problems']}\n")
+            f.write(f"**Issues Requiring Attention:** {report['summary']['applicable_problems']}\n")
+            f.write(f"**Issues Dismissed as False Positives:** {report['summary']['total_problems'] - report['summary']['applicable_problems']}\n\n")
             
-            f.write("## Problems by Severity\n\n")
+            # Applicable issues by severity
+            if report['summary']['applicable_problems'] > 0:
+                f.write("## 🚨 Issues Requiring Attention\n\n")
+                
+                # Group by severity
+                severity_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+                for severity in severity_order:
+                    severity_issues = [r for r in self.results if r.is_applicable and r.severity == severity]
+                    if severity_issues:
+                        f.write(f"### {severity} Severity ({len(severity_issues)} issue{'s' if len(severity_issues) > 1 else ''})\n\n")
+                        for result in severity_issues:
+                            f.write(f"**{result.problem_id}**\n")
+                            f.write(f"- **Confidence:** {result.confidence:.0%}\n")
+                            f.write(f"- **Summary:** {result.explanation[:200]}{'...' if len(result.explanation) > 200 else ''}\n")
+                            f.write(f"- **Actions:**\n")
+                            for action in result.recommended_actions[:3]:  # Show first 3 actions
+                                f.write(f"  - {action}\n")
+                            f.write("\n")
+            
+            # False positives
+            false_positives = [r for r in self.results if not r.is_applicable]
+            if false_positives:
+                f.write("## ✅ False Positives / Not Applicable\n\n")
+                for result in false_positives:
+                    f.write(f"**{result.problem_id}** (Severity: {result.severity})\n")
+                    f.write(f"- **Confidence:** {result.confidence:.0%}\n")
+                    f.write(f"- **Reason:** {result.explanation[:200]}{'...' if len(result.explanation) > 200 else ''}\n")
+                    if result.recommended_actions:
+                        f.write(f"- **Recommendation:** {result.recommended_actions[0]}\n")
+                    f.write("\n")
+            
+            # Add metadata
+            f.write("---\n\n")
+            f.write("## Analysis Details\n\n")
+            f.write(f"- **Problems by Severity:**\n")
             for severity, count in report["summary"]["by_severity"].items():
-                f.write(f"- {severity}: {count}\n")
+                f.write(f"  - {severity}: {count}\n")
+            f.write(f"- **Total Investigation Steps:** {sum(len(r.analysis_steps) for r in self.results)}\n")
+            f.write(f"- **Average Confidence:** {sum(r.confidence for r in self.results) / len(self.results):.0%}\n")

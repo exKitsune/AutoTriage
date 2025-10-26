@@ -268,7 +268,7 @@ def main():
     
     # Run analysis
     try:
-        results = agent_system.analyze_problems(problems_as_dicts)
+        results = agent_system.analyze_problems(problems_as_dicts, output_dir=output_dir)
         agent_system.generate_report(output_dir)
         
         print(f"\n{'='*80}")

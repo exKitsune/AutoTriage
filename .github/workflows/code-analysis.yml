@@ -156,11 +156,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate CycloneDX SBOM
-        uses: CycloneDX/gh-node-module-generatebom@v1
-        with:
-          path: ${{ github.event.inputs.subfolder }}
-          output: sbom.json
+      - name: Install Syft (Universal SBOM Generator)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate CycloneDX SBOM with Syft
+        run: |
+          echo "Generating SBOM for ${{ github.event.inputs.subfolder }} using Syft..."
+          echo "Syft will auto-detect: Python, JavaScript, Java, Go, Ruby, PHP, and more!"
+          syft dir:${{ github.event.inputs.subfolder }} -o cyclonedx-json > sbom.json
+
+          # Show what was detected
+          echo "=== SBOM Summary ==="
+          jq '.components | length' sbom.json || echo "0"
+          echo "components detected"
+
+          # List detected package managers
+          echo "=== Package Ecosystems Detected ==="
+          jq -r '.components[].purl | split(":")[0] | select(. != null)' sbom.json | sort -u || echo "None"
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4

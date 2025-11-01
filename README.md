@@ -95,8 +95,9 @@ The workflow runs automatically or can be triggered manually:
 Results are uploaded as workflow artifacts:
 
 - `analysis_report.json`: Detailed JSON report with all findings
-- `analysis_summary.md`: Human-readable summary
+- `analysis_summary.md`: Human-readable summary with actionable recommendations
 - `problems.json`: Debug file with all detected issues (before analysis)
+- `conversation_logs/`: Detailed AI conversation logs for each issue (useful for debugging)
 
 ### Manual Execution
 

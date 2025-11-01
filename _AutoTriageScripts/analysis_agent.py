@@ -150,6 +150,7 @@ class AnalysisAgent:
         return {
             "is_applicable": False,  # Conservative: assume not applicable on error
             "confidence": 0.0,
+            "real_severity": "LOW",  # Conservative default for failed analysis
             "explanation": f"Analysis failed: {error}. Manual review recommended.",
             "evidence": {"error": error, "raw_response": raw_response if raw_response else ""},
             "recommended_actions": ["Manual review required due to analysis failure"]
@@ -240,7 +241,7 @@ class AnalysisAgent:
                 # Check if this is the final analysis
                 if tool_name == "provide_analysis":
                     # First validate required fields are present
-                    required_fields = ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"]
+                    required_fields = ["is_applicable", "confidence", "real_severity", "explanation", "evidence", "recommended_actions"]
                     missing_fields = [f for f in required_fields if f not in parameters]
                     
                     # Check for common mistakes in parameter names
@@ -249,7 +250,10 @@ class AnalysisAgent:
                         "applicable": "is_applicable",
                         "conclusion": "explanation",
                         "reasoning": "explanation",
-                        "actions": "recommended_actions"
+                        "actions": "recommended_actions",
+                        "severity": "real_severity",
+                        "actual_severity": "real_severity",
+                        "assessed_severity": "real_severity"
                     }
                     
                     if missing_fields:
@@ -303,6 +307,15 @@ class AnalysisAgent:
                         ])
                     else:
                         parameters["reasoning"] = ""
+                    
+                    # Save final provide_analysis to conversation history
+                    conversation_history.append({
+                        "iteration": iteration + 1,
+                        "ai_response": response,
+                        "tool_called": "provide_analysis",
+                        "tool_parameters": parameters,
+                        "tool_result": {"status": "analysis_complete"}
+                    })
                     
                     # Add conversation history for debugging
                     parameters["_conversation_history"] = conversation_history
@@ -416,6 +429,16 @@ class AnalysisAgent:
                     ])
                 else:
                     result["reasoning"] = ""
+                
+                # Save final provide_analysis to conversation history
+                conversation_history.append({
+                    "iteration": max_iterations + 1,
+                    "ai_response": response,
+                    "tool_called": "provide_analysis",
+                    "tool_parameters": result,
+                    "tool_result": {"status": "analysis_complete"}
+                })
+                
                 # Add conversation history
                 result["_conversation_history"] = conversation_history
                 result["_final_message_count"] = len(messages)
@@ -528,20 +551,32 @@ class AnalysisAgent:
         problem_id = self.problem.get('id', 'unknown').replace(':', '_').replace('/', '_')
         log_file = logs_dir / f"{problem_id}_conversation.json"
         
+        # Calculate metrics
+        total_tools_called = len([c for c in conversation_history if c.get('tool_called') != 'provide_analysis'])
+        
         log_data = {
             "problem_id": self.problem.get('id', 'unknown'),
             "problem_type": self.problem.get('type', 'unknown'),
+            "problem_severity": self.problem.get('severity', 'UNKNOWN'),
             "conversation": conversation_history,
             "final_result": {
                 "analysis_steps_count": len(self.analysis_steps),
-                "iterations_used": len(conversation_history)
+                "iterations_used": len(conversation_history),
+                "investigation_tools_used": total_tools_called,
+                "tools_breakdown": {}
             }
         }
+        
+        # Count tools used
+        for conv in conversation_history:
+            tool = conv.get('tool_called', 'unknown')
+            log_data["final_result"]["tools_breakdown"][tool] = \
+                log_data["final_result"]["tools_breakdown"].get(tool, 0) + 1
         
         with open(log_file, 'w') as f:
             json.dump(log_data, f, indent=2)
         
-        print(f"  💾 Conversation log saved to: {log_file.name}")
+        print(f"  💾 Conversation log saved: {log_file.name} ({len(conversation_history)} turns)")
     
     def analyze(self, output_dir: Path = None) -> AnalysisResult:
         """
@@ -583,12 +618,16 @@ class AnalysisAgent:
             if final_message_count > 0:
                 evidence["conversation_turns"] = final_message_count
             
+            # Use AI's severity assessment if provided, otherwise use original severity
+            # The AI may provide a more accurate severity based on actual real-world impact
+            final_severity = analysis.get("real_severity", self.problem.get("severity", "UNKNOWN"))
+            
             result = AnalysisResult(
                 problem_id=self.problem.get("id", "unknown"),
                 is_applicable=analysis.get("is_applicable", False),
                 confidence=analysis.get("confidence", 0.0),
                 explanation=analysis.get("explanation", "Analysis unavailable"),
-                severity=self.problem.get("severity", "UNKNOWN"),
+                severity=final_severity,
                 recommended_actions=analysis.get("recommended_actions", ["Manual review required"]),
                 evidence=evidence,
                 analysis_steps=self.analysis_steps,
@@ -714,30 +753,50 @@ class AgentSystem:
         # Write markdown summary
         summary_file = output_dir / "analysis_summary.md"
         with open(summary_file, 'w') as f:
+            # Count important issues only (CRITICAL, HIGH, MEDIUM)
+            important_count = len([r for r in self.results if r.is_applicable and r.severity in ["CRITICAL", "HIGH", "MEDIUM"]])
+            low_priority_count = len([r for r in self.results if r.is_applicable and r.severity in ["LOW", "TRIVIAL"]])
+            false_positive_count = len([r for r in self.results if not r.is_applicable])
+            
             f.write("# Security and Quality Analysis Summary\n\n")
             f.write(f"**Date:** {report.get('analysis_metadata', {}).get('analysis_date', 'N/A')}\n")
             f.write(f"**Total Issues Analyzed:** {report['summary']['total_problems']}\n")
-            f.write(f"**Issues Requiring Attention:** {report['summary']['applicable_problems']}\n")
-            f.write(f"**Issues Dismissed as False Positives:** {report['summary']['total_problems'] - report['summary']['applicable_problems']}\n\n")
+            f.write(f"**Issues Requiring Attention:** {important_count} (CRITICAL/HIGH/MEDIUM)\n")
+            if low_priority_count > 0:
+                f.write(f"**Low Priority Issues:** {low_priority_count}\n")
+            f.write(f"**False Positives/Not Applicable:** {false_positive_count}\n\n")
             
-            # Applicable issues by severity
-            if report['summary']['applicable_problems'] > 0:
+            # Applicable issues by severity - only show important issues (CRITICAL, HIGH, MEDIUM)
+            important_issues = [r for r in self.results if r.is_applicable and r.severity in ["CRITICAL", "HIGH", "MEDIUM"]]
+            if important_issues:
                 f.write("## 🚨 Issues Requiring Attention\n\n")
                 
-                # Group by severity
-                severity_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+                # Group by severity - only important ones
+                severity_order = ["CRITICAL", "HIGH", "MEDIUM"]
                 for severity in severity_order:
-                    severity_issues = [r for r in self.results if r.is_applicable and r.severity == severity]
+                    severity_issues = [r for r in important_issues if r.severity == severity]
                     if severity_issues:
                         f.write(f"### {severity} Severity ({len(severity_issues)} issue{'s' if len(severity_issues) > 1 else ''})\n\n")
                         for result in severity_issues:
                             f.write(f"**{result.problem_id}**\n")
                             f.write(f"- **Confidence:** {result.confidence:.0%}\n")
-                            f.write(f"- **Summary:** {result.explanation[:200]}{'...' if len(result.explanation) > 200 else ''}\n")
+                            f.write(f"- **Summary:** {result.explanation}\n")
                             f.write(f"- **Actions:**\n")
-                            for action in result.recommended_actions[:3]:  # Show first 3 actions
+                            for action in result.recommended_actions:
                                 f.write(f"  - {action}\n")
                             f.write("\n")
+            
+            # Low priority issues (for reference, not urgent)
+            low_priority = [r for r in self.results if r.is_applicable and r.severity in ["LOW", "TRIVIAL"]]
+            if low_priority:
+                f.write("## ℹ️ Low Priority / Code Quality Issues\n\n")
+                f.write("*These issues are not urgent but may be addressed during refactoring.*\n\n")
+                for result in low_priority:
+                    f.write(f"**{result.problem_id}** ({result.severity})\n")
+                    f.write(f"- **Summary:** {result.explanation}\n")
+                    if result.recommended_actions:
+                        f.write(f"- **Suggested Actions:** {', '.join(result.recommended_actions[:2])}\n")
+                    f.write("\n")
             
             # False positives
             false_positives = [r for r in self.results if not r.is_applicable]
@@ -746,9 +805,11 @@ class AgentSystem:
                 for result in false_positives:
                     f.write(f"**{result.problem_id}** (Severity: {result.severity})\n")
                     f.write(f"- **Confidence:** {result.confidence:.0%}\n")
-                    f.write(f"- **Reason:** {result.explanation[:200]}{'...' if len(result.explanation) > 200 else ''}\n")
+                    f.write(f"- **Reason:** {result.explanation}\n")
                     if result.recommended_actions:
-                        f.write(f"- **Recommendation:** {result.recommended_actions[0]}\n")
+                        f.write(f"- **Recommendations:**\n")
+                        for action in result.recommended_actions:
+                            f.write(f"  - {action}\n")
                     f.write("\n")
             
             # Add metadata

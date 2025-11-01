@@ -282,6 +282,12 @@
           "minimum": 0.0,
           "maximum": 1.0
         },
+        "real_severity": {
+          "type": "string",
+          "description": "The ACTUAL real-world severity based on your investigation. Valid values: CRITICAL (data breach, RCE, authentication bypass), HIGH (exploitable vulnerabilities, data exposure), MEDIUM (potential security issues, performance problems), LOW (code quality, best practices), TRIVIAL (cosmetic issues, style preferences). Be honest about real-world impact - most code quality issues are TRIVIAL or LOW.",
+          "required": true,
+          "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "TRIVIAL"]
+        },
         "explanation": {
           "type": "string",
           "description": "Detailed explanation of your reasoning and what evidence you found (this will be shown to users)",
@@ -310,6 +316,7 @@
           "parameters": {
             "is_applicable": false,
             "confidence": 0.9,
+            "real_severity": "LOW",
             "explanation": "PyYAML 5.3.1 is listed in requirements.txt but after searching the entire codebase, no import statements for yaml were found. The vulnerable functions (full_load, FullLoader) are not used.",
             "evidence": {
               "in_requirements": true,

@@ -271,15 +271,36 @@ def main():
         results = agent_system.analyze_problems(problems_as_dicts, output_dir=output_dir)
         agent_system.generate_report(output_dir)
         
+        # Count issues by priority
+        important_count = sum(1 for r in results if r.is_applicable and r.severity in ["CRITICAL", "HIGH", "MEDIUM"])
+        low_priority_count = sum(1 for r in results if r.is_applicable and r.severity in ["LOW", "TRIVIAL"])
+        dismissed_count = sum(1 for r in results if not r.is_applicable)
+        
         print(f"\n{'='*80}")
         print("✅ ANALYSIS COMPLETE")
         print(f"{'='*80}")
         print(f"Total issues analyzed: {len(problems)}")
-        print(f"Issues requiring attention: {sum(1 for r in results if r.is_applicable)}")
-        print(f"Issues dismissed: {sum(1 for r in results if not r.is_applicable)}")
-        print(f"\nResults written to:")
+        print(f"🚨 Issues requiring attention: {important_count} (CRITICAL/HIGH/MEDIUM)")
+        if low_priority_count > 0:
+            print(f"ℹ️  Low priority issues: {low_priority_count}")
+        print(f"✅ Issues dismissed: {dismissed_count}")
+        
+        # Calculate efficiency metrics
+        if results:
+            avg_confidence = sum(r.confidence for r in results) / len(results)
+            total_steps = sum(len(r.analysis_steps) for r in results)
+            avg_steps = total_steps / len(results)
+            
+            print(f"\n📊 Analysis Performance:")
+            print(f"  Average confidence: {avg_confidence:.0%}")
+            print(f"  Total investigation steps: {total_steps}")
+            print(f"  Average steps per issue: {avg_steps:.1f}")
+            print(f"  Efficiency: {'🔥 Excellent' if avg_steps < 3 else '✅ Good' if avg_steps < 5 else '⚠️  Could improve'}")
+        
+        print(f"\n📁 Results written to:")
         print(f"  📄 {output_dir / 'analysis_report.json'}")
         print(f"  📋 {output_dir / 'analysis_summary.md'}")
+        print(f"  💾 {output_dir / 'conversation_logs'}/ (detailed logs)")
         print(f"{'='*80}\n")
         
     except Exception as e:

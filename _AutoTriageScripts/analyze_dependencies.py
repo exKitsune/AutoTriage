@@ -4,95 +4,12 @@ import argparse
 import os
 import sys
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-@dataclass
-class Problem:
-    """Represents a security or code quality issue from any analysis tool."""
-    id: str  # Unique identifier for the issue
-    source: str  # Tool that found the issue (e.g., 'sonarqube', 'dependency-check')
-    title: str  # Short description of the issue
-    description: str  # Detailed description
-    severity: str  # Severity level (normalized across tools)
-    component: str  # Affected component/file
-    type: str  # Type of issue (e.g., 'vulnerability', 'code-smell', 'bug')
-    line: Optional[int] = None  # Line number if applicable
-    raw_data: Optional[Dict[str, Any]] = None  # Original raw data from the tool
-
-def normalize_severity(severity: str, source: str) -> str:
-    """Normalize severity levels across different tools."""
-    severity = severity.upper()
-    
-    if source == "sonarqube":
-        severity_map = {
-            "BLOCKER": "CRITICAL",
-            "CRITICAL": "CRITICAL",
-            "MAJOR": "HIGH",
-            "MINOR": "LOW",
-            "INFO": "INFO"
-        }
-        return severity_map.get(severity, severity)
-    
-    if source == "dependency-check":
-        # Dependency Check already uses standard severity levels
-        return severity
-    
-    return severity
-
-def parse_sonarqube_issues(issues_file: Path) -> List[Problem]:
-    """Parse SonarQube issues into Problem objects."""
-    with open(issues_file) as f:
-        data = json.load(f)
-    
-    problems = []
-    for issue in data.get("issues", []):
-        problems.append(Problem(
-            id=issue["key"],
-            source="sonarqube",
-            title=issue["message"],
-            description=issue.get("message", ""),  # SonarQube doesn't always have detailed descriptions
-            severity=normalize_severity(issue["severity"], "sonarqube"),
-            component=issue["component"],
-            type=issue["type"].lower(),
-            line=issue.get("line"),
-            raw_data=issue
-        ))
-    
-    return problems
-
-def parse_dependency_check_issues(report_file: Path) -> List[Problem]:
-    """Parse Dependency Check issues into Problem objects."""
-    with open(report_file) as f:
-        data = json.load(f)
-    
-    problems = []
-    for dependency in data.get("dependencies", []):
-        for vuln in dependency.get("vulnerabilities", []):
-            description = vuln.get("description", "")
-            if vuln.get("cwes"):
-                description = f"CWEs: {', '.join(vuln['cwes'])}\n{description}"
-            
-            problems.append(Problem(
-                id=vuln["name"],  # Usually a CVE ID
-                source="dependency-check",
-                title=f"Vulnerability in {dependency['fileName']}: {vuln['name']}",
-                description=description,
-                severity=normalize_severity(vuln["severity"], "dependency-check"),
-                component=dependency["fileName"],
-                type="vulnerability",
-                raw_data={
-                    "vulnerability": vuln,
-                    "dependency": {
-                        "fileName": dependency["fileName"],
-                        "filePath": dependency["filePath"],
-                        "packages": dependency.get("packages", [])
-                    }
-                }
-            ))
-    
-    return problems
+# Import parsers from the new modular system
+from parsers import Problem, SonarQubeParser, DependencyCheckParser, CycloneDXParser
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -118,6 +35,12 @@ def parse_arguments() -> argparse.Namespace:
     )
     
     parser.add_argument(
+        "--sbom",
+        action="store_true",
+        help="Process CycloneDX SBOM for vulnerabilities"
+    )
+    
+    parser.add_argument(
         "--input-dir",
         type=str,
         default="analysis-inputs",
@@ -140,8 +63,9 @@ def parse_arguments() -> argparse.Namespace:
 
     args = parser.parse_args()
     
-    # If no tools are selected, enable all by default
-    if not any([args.sonarqube, args.dependency_check]):
+    # If no tools are selected, enable SonarQube and Dependency-Check by default
+    # (SBOM is optional since it may not always have vulnerabilities)
+    if not any([args.sonarqube, args.dependency_check, args.sbom]):
         args.sonarqube = True
         args.dependency_check = True
     
@@ -164,15 +88,21 @@ def get_tool_paths(input_dir: Path, args: argparse.Namespace) -> Dict[str, Path]
         if depcheck_dir.exists():
             tool_paths["dependency-check"] = depcheck_dir / "dependency-check-report.json"
     
-    # SBOM is always included when available
+    if args.sbom:
+        sbom_dir = input_dir / "sbom"
+        if sbom_dir.exists():
+            tool_paths["sbom"] = sbom_dir / "sbom.json"
+    
+    # SBOM is also always available for tool_executor search_sbom functionality
+    # even if not being parsed for problems
     sbom_dir = input_dir / "sbom"
-    if sbom_dir.exists():
-        tool_paths["sbom"] = sbom_dir / "sbom.json"
+    if sbom_dir.exists() and "sbom" not in tool_paths:
+        tool_paths["sbom_reference"] = sbom_dir / "sbom.json"
     
     return tool_paths
 
 def collect_problems(input_dir: Path, args: argparse.Namespace) -> List[Problem]:
-    """Collect all problems from available analysis tools."""
+    """Collect all problems from available analysis tools using modular parsers."""
     problems = []
     tool_paths = get_tool_paths(input_dir, args)
     
@@ -183,16 +113,41 @@ def collect_problems(input_dir: Path, args: argparse.Namespace) -> List[Problem]
     # Process SonarQube results if enabled and available
     if "sonarqube" in tool_paths:
         print("Processing SonarQube results...")
-        problems.extend(parse_sonarqube_issues(tool_paths["sonarqube"]))
+        try:
+            parser = SonarQubeParser()
+            sonarqube_problems = parser.parse(tool_paths["sonarqube"])
+            problems.extend(sonarqube_problems)
+            print(f"  Found {len(sonarqube_problems)} SonarQube issues")
+        except Exception as e:
+            print(f"  Error parsing SonarQube results: {str(e)}")
     elif args.sonarqube:
         print("Warning: SonarQube analysis was enabled but no results found")
     
     # Process Dependency Check results if enabled and available
     if "dependency-check" in tool_paths:
         print("Processing Dependency-Check results...")
-        problems.extend(parse_dependency_check_issues(tool_paths["dependency-check"]))
+        try:
+            parser = DependencyCheckParser()
+            depcheck_problems = parser.parse(tool_paths["dependency-check"])
+            problems.extend(depcheck_problems)
+            print(f"  Found {len(depcheck_problems)} vulnerabilities")
+        except Exception as e:
+            print(f"  Error parsing Dependency-Check results: {str(e)}")
     elif args.dependency_check:
         print("Warning: Dependency-Check was enabled but no results found")
+    
+    # Process CycloneDX SBOM if enabled and available
+    if "sbom" in tool_paths:
+        print("Processing CycloneDX SBOM...")
+        try:
+            parser = CycloneDXParser()
+            sbom_problems = parser.parse(tool_paths["sbom"])
+            problems.extend(sbom_problems)
+            print(f"  Found {len(sbom_problems)} issues in SBOM")
+        except Exception as e:
+            print(f"  Error parsing SBOM: {str(e)}")
+    elif args.sbom:
+        print("Warning: SBOM analysis was enabled but no SBOM file found")
     
     # Sort problems by severity
     severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
@@ -224,6 +179,8 @@ def main():
         enabled_tools.append("sonarqube")
     if args.dependency_check:
         enabled_tools.append("dependency-check")
+    if args.sbom:
+        enabled_tools.append("cyclonedx-sbom")
     print("Enabled tools:", ", ".join(enabled_tools))
     print(f"Max iterations per issue: {args.max_iterations}")
     

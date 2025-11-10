@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from openai import OpenAI
 
-from ai_tools import get_ai_client, query_model
+from llm_client import get_ai_client, query_model
 from tool_executor import ToolExecutor
 from prompt_formatter import format_tools_for_prompt
 

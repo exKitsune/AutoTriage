@@ -222,7 +222,7 @@ jobs:
         id: analyze
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: python _AutoTriageScripts/analyze_dependencies.py ${{ github.event.inputs.subfolder }} --sonarqube --dependency-check --max-iterations ${{ github.event.inputs.max_iterations || 5 }}
+        run: python _AutoTriageScripts/analyze_dependencies.py ${{ github.event.inputs.subfolder }} --sonarqube --dependency-check --sbom --max-iterations ${{ github.event.inputs.max_iterations || 5 }}
 
       - name: Upload Aggregated Analysis
         uses: actions/upload-artifact@v4

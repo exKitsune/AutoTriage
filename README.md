@@ -40,9 +40,17 @@ The AI agent uses an iterative tool-calling approach:
 
 This continues for up to 5 iterations per issue.
 
-### Available Tools
+### Supported Analysis Tools
 
-The AI agent has access to these tools:
+AutoTriage can parse and analyze results from:
+
+- **SonarQube**: Code quality issues, bugs, security hotspots
+- **OWASP Dependency-Check**: CVE vulnerabilities in dependencies
+- **CycloneDX SBOM**: Software Bill of Materials with optional vulnerability data
+
+### AI Investigation Tools
+
+The AI agent has access to these tools during analysis:
 
 - **read_file**: Read complete file contents
 - **read_file_lines**: Read specific line ranges (for large files)
@@ -108,6 +116,9 @@ python _AutoTriageScripts/analyze_dependencies.py <subfolder> --sonarqube --depe
 # Example with container_security test project
 python _AutoTriageScripts/analyze_dependencies.py container_security --dependency-check
 
+# Include SBOM vulnerability analysis
+python _AutoTriageScripts/analyze_dependencies.py container_security --dependency-check --sbom
+
 # Customize max iterations (allow more thorough investigation)
 python _AutoTriageScripts/analyze_dependencies.py container_security --dependency-check --max-iterations 8
 
@@ -119,6 +130,7 @@ python _AutoTriageScripts/analyze_dependencies.py old_deps --sonarqube --max-ite
 
 - `--sonarqube`: Process SonarQube results
 - `--dependency-check`: Process OWASP Dependency-Check results
+- `--sbom`: Process CycloneDX SBOM for vulnerabilities
 - `--input-dir`: Custom input directory (default: `analysis-inputs`)
 - `--output-dir`: Custom output directory (default: `analysis-outputs`)
 - `--max-iterations`: Max tool calls per issue (default: `5`)
@@ -131,13 +143,29 @@ AutoTriage/
 │   ├── analyze_dependencies.py   # Entry point script
 │   ├── analysis_agent.py         # Core agent logic and agentic loop
 │   ├── tool_executor.py          # Tool implementations
-│   ├── ai_tools.py               # OpenAI/OpenRouter client
+│   ├── llm_client.py             # LLM provider factory
 │   ├── prompt_formatter.py       # Formats tool docs for LLM
 │   ├── tools_definition.json     # Tool specifications
+│   │
+│   ├── llm_providers/            # 🔌 Pluggable LLM providers
+│   │   ├── __init__.py
+│   │   ├── base_provider.py     # Abstract base class
+│   │   ├── openrouter_provider.py  # OpenRouter implementation
+│   │
+│   ├── parsers/                  # 🔌 Pluggable tool parsers
+│   │   ├── __init__.py
+│   │   ├── base_parser.py       # Abstract base class + Problem dataclass
+│   │   ├── sonarqube_parser.py  # SonarQube parser
+│   │   ├── dependency_check_parser.py  # OWASP Dependency-Check parser
+│   │   ├── cyclonedx_parser.py  # CycloneDX SBOM parser
+│   │
 │   ├── config/
 │   │   ├── ai_config.json        # AI model configuration
 │   │   └── prompts.json          # LLM prompt templates
+│   │
 │   └── tests/                    # Test suite
+│       ├── test_parser_compatibility.py  # Verifies parsers match old behavior
+│       └── test_cyclonedx_parser.py     # CycloneDX-specific tests
 │
 ├── _example_output/              # Example outputs from tools
 │   ├── CycloneDX/               # SBOM examples
@@ -159,6 +187,75 @@ AutoTriage/
     └── workflows/
         └── code-analysis.yml     # GitHub Actions workflow
 ```
+
+### Parser Path Verification ✅
+
+The parsers expect files at these locations (verified to match GitHub workflow):
+
+| Tool             | Workflow Output                                                 | Parser Expects                                            | Status   |
+| ---------------- | --------------------------------------------------------------- | --------------------------------------------------------- | -------- |
+| SonarQube        | `analysis-inputs/sonarqube/sonar-issues.json`                   | `input_dir/sonarqube/sonar-issues.json`                   | ✅ Match |
+| Dependency-Check | `analysis-inputs/dependency-check/dependency-check-report.json` | `input_dir/dependency-check/dependency-check-report.json` | ✅ Match |
+| CycloneDX SBOM   | `analysis-inputs/sbom/sbom.json`                                | `input_dir/sbom/sbom.json`                                | ✅ Match |
+
+The workflow downloads artifacts to `analysis-inputs/` directory, and parsers read from the same structure by default.
+
+## Modular Architecture 🔌
+
+AutoTriage is built with extensibility in mind. The system uses a pluggable architecture that allows you to:
+
+### Custom LLM Providers
+
+Easily swap or add LLM providers without touching core code.
+
+**Included**: OpenRouter (supports Claude, GPT-4, Gemini, etc.)
+
+**Add Your Own**: Extend `BaseLLMProvider` to add support for:
+
+- Direct OpenAI API
+- Anthropic Claude API
+- Azure OpenAI
+- Google Vertex AI
+- Local models (Ollama, LM Studio, etc.)
+- Any OpenAI-compatible endpoint
+
+Check `_AutoTriageScripts/llm_providers/` for base class and examples.
+
+### Custom Security Tool Parsers
+
+Add support for new security scanning tools by creating parsers.
+
+**Included**:
+
+- SonarQube (code quality & security)
+- OWASP Dependency-Check (CVE vulnerabilities)
+- CycloneDX (SBOM with optional vulnerabilities)
+
+**Add Your Own**: Extend `BaseParser` to add support for:
+
+- Snyk
+- Trivy
+- Bandit
+- ESLint with security plugins
+- Custom internal tools
+- SARIF format tools
+
+Creating a new parser is easy - just extend `BaseParser` and implement 3 methods!
+
+### Example: Adding a New Tool
+
+```python
+# _AutoTriageScripts/parsers/snyk_parser.py
+from .base_parser import BaseParser, Problem
+
+class SnykParser(BaseParser):
+    def parse(self, file_path: Path) -> List[Problem]:
+        # Parse Snyk JSON output
+        # Return list of Problem objects
+        pass
+```
+
+No changes needed to core analysis logic! Just register in `__init__.py` and `analyze_dependencies.py`.
 
 ## Configuration
 
@@ -311,10 +408,26 @@ cd _AutoTriageScripts/tests
 # Run all tests
 python test_basic.py
 
+# Test parser compatibility (ensures new parsers produce same results as old code)
+python test_parser_compatibility.py
+
+# Test CycloneDX parser
+python test_cyclonedx_parser.py
+
 # Test specific components
 python test_tools.py           # Test individual tools
 python test_path_resolution.py  # Test file path handling
 ```
+
+### Parser Compatibility Guarantee
+
+The modular parser system is **guaranteed to produce identical results** to the original inline parsing functions. This is verified by the test suite:
+
+- ✅ **SonarQube Parser**: All fields match exactly (id, severity, component, type, line)
+- ✅ **Dependency-Check Parser**: All vulnerabilities parsed identically (CVE IDs, descriptions, CWE formatting)
+- ✅ **CycloneDX Parser**: New parser for SBOM vulnerability extraction
+
+Run `python _AutoTriageScripts/tests/test_parser_compatibility.py` to verify anytime.
 
 ## Troubleshooting
 

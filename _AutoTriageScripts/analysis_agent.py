@@ -466,8 +466,11 @@ class AnalysisAgent:
         """Analyze a security vulnerability using agentic loop with tools."""
         prompt_data = self.prompts["vulnerability_analysis"]
         
-        # Generate full tools documentation
-        tools_documentation = format_tools_for_prompt()
+        # Generate full tools documentation (filtered by availability)
+        tools_documentation = format_tools_for_prompt(
+            workspace_root=self.workspace_root,
+            input_dir=self.input_dir
+        )
         
         # Format prompt
         formatted_prompt = prompt_data["prompt_template"].format(
@@ -490,8 +493,11 @@ class AnalysisAgent:
         """Analyze a code quality issue using agentic loop with tools."""
         prompt_data = self.prompts["code_quality_analysis"]
         
-        # Generate full tools documentation
-        tools_documentation = format_tools_for_prompt()
+        # Generate full tools documentation (filtered by availability)
+        tools_documentation = format_tools_for_prompt(
+            workspace_root=self.workspace_root,
+            input_dir=self.input_dir
+        )
         
         # Format prompt
         formatted_prompt = prompt_data["prompt_template"].format(
@@ -518,8 +524,11 @@ class AnalysisAgent:
         """Analyze a dependency issue using agentic loop with tools."""
         prompt_data = self.prompts["dependency_analysis"]
         
-        # Generate full tools documentation
-        tools_documentation = format_tools_for_prompt()
+        # Generate full tools documentation (filtered by availability)
+        tools_documentation = format_tools_for_prompt(
+            workspace_root=self.workspace_root,
+            input_dir=self.input_dir
+        )
         
         # Format prompt
         formatted_prompt = prompt_data["prompt_template"].format(

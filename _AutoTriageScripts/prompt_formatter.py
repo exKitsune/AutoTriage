@@ -1,21 +1,42 @@
 #!/usr/bin/env python3
 """
 Helper to format tool definitions for LLM prompts.
+Uses the modular tool system from the tools/ directory.
 """
 
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+from tool_availability import ToolAvailabilityChecker
+from tools import get_all_tool_metadata
 
 
-def format_tools_for_prompt() -> str:
+def format_tools_for_prompt(
+    workspace_root: Optional[Path] = None,
+    input_dir: Optional[Path] = None
+) -> str:
     """
-    Load tools from tools_definition.json and format them for LLM consumption.
-    Includes all necessary details: parameters, returns, examples.
+    Load tools from the modular tool system and format them for LLM consumption.
+    Only includes tools whose requirements are met.
+    
+    Args:
+        workspace_root: Root directory of workspace (for checking tool availability)
+        input_dir: Directory containing analysis inputs like SBOM (for checking tool availability)
+    
+    Returns:
+        Formatted string with available tools documentation
     """
-    tools_file = Path(__file__).parent / "tools_definition.json"
-    with open(tools_file) as f:
-        tools_data = json.load(f)
+    # Get all tool metadata from modular tool system
+    all_tools = get_all_tool_metadata()
+    
+    # Filter tools based on availability
+    if workspace_root and input_dir:
+        checker = ToolAvailabilityChecker(workspace_root, input_dir)
+        available_tools = checker.get_available_tools(all_tools)
+    else:
+        # No filtering if paths not provided (backwards compatibility)
+        available_tools = all_tools
     
     sections = []
     
@@ -24,9 +45,15 @@ def format_tools_for_prompt() -> str:
     sections.append("TOOL CALLING FORMAT")
     sections.append("=" * 60)
     sections.append("\nTo call a tool, respond with a JSON object in this format:")
-    sections.append(json.dumps(tools_data["tool_call_format"]["format"], indent=2))
+    sections.append(json.dumps({
+        "tool": "tool_name",
+        "parameters": {
+            "param1": "value1",
+            "param2": "value2"
+        }
+    }, indent=2))
     sections.append("\nExample:")
-    sections.append(tools_data["tool_call_format"]["example"])
+    sections.append('{"tool": "read_file", "parameters": {"file_path": "app.py"}}')
     sections.append("")
     
     # Available tools
@@ -35,7 +62,7 @@ def format_tools_for_prompt() -> str:
     sections.append("=" * 60)
     sections.append("")
     
-    for tool in tools_data["tools"]:
+    for tool in available_tools:
         sections.append(f"## {tool['name']}")
         sections.append(f"{tool['description']}\n")
         
@@ -62,7 +89,16 @@ def format_tools_for_prompt() -> str:
     sections.append("=" * 60)
     sections.append("IMPORTANT NOTES")
     sections.append("=" * 60)
-    for note in tools_data["important_notes"]:
+    important_notes = [
+        "Always respond with ONLY a JSON object containing 'tool' and 'parameters'. No other text.",
+        "Use provide_analysis when you have enough information to make a determination.",
+        "Investigate thoroughly before providing analysis - check code, search for usage, examine configurations.",
+        "For vulnerabilities, always check if the vulnerable package is actually used and how it's used.",
+        "For false positives, provide clear evidence from the codebase.",
+        "File paths are relative to the workspace root.",
+        "Search operations support regex patterns."
+    ]
+    for note in important_notes:
         sections.append(f"• {note}")
     sections.append("")
     
@@ -71,14 +107,10 @@ def format_tools_for_prompt() -> str:
 
 def get_tool_summary() -> Dict[str, str]:
     """Get a brief summary of each tool (one line per tool)."""
-    tools_file = Path(__file__).parent / "tools_definition.json"
-    with open(tools_file) as f:
-        tools_data = json.load(f)
-    
-    return {tool["name"]: tool["description"] for tool in tools_data["tools"]}
+    all_tools = get_all_tool_metadata()
+    return {tool["name"]: tool["description"] for tool in all_tools}
 
 
 if __name__ == "__main__":
     # Test the formatting
     print(format_tools_for_prompt())
-

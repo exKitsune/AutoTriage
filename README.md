@@ -57,9 +57,11 @@ The AI agent has access to these tools during analysis:
 - **search_code**: Grep-based pattern search with regex support
 - **find_files**: Find files matching patterns
 - **list_directory**: List directory contents
-- **search_sbom**: Search Software Bill of Materials for packages
+- **search_sbom**: Search Software Bill of Materials for packages (⚠️ only available if SBOM exists)
 - **check_import_usage**: Check if Python packages are imported
 - **provide_analysis**: Submit final analysis conclusion
+
+**Dynamic Tool Filtering**: Tools are automatically filtered based on availability. For example, if no SBOM file is present, the `search_sbom` tool is hidden from the AI to prevent confusion. This ensures the AI only sees tools it can actually use.
 
 ## Setup
 
@@ -142,22 +144,34 @@ AutoTriage/
 ├── _AutoTriageScripts/           # Main analysis system
 │   ├── analyze_dependencies.py   # Entry point script
 │   ├── analysis_agent.py         # Core agent logic and agentic loop
-│   ├── tool_executor.py          # Tool implementations
+│   ├── tool_executor.py          # Lightweight tool execution dispatcher
 │   ├── llm_client.py             # LLM provider factory
 │   ├── prompt_formatter.py       # Formats tool docs for LLM
-│   ├── tools_definition.json     # Tool specifications
+│   ├── tool_availability.py      # Dynamic tool filtering
 │   │
 │   ├── llm_providers/            # 🔌 Pluggable LLM providers
 │   │   ├── __init__.py
 │   │   ├── base_provider.py     # Abstract base class
-│   │   ├── openrouter_provider.py  # OpenRouter implementation
+│   │   └── openrouter_provider.py  # OpenRouter implementation
 │   │
 │   ├── parsers/                  # 🔌 Pluggable tool parsers
 │   │   ├── __init__.py
 │   │   ├── base_parser.py       # Abstract base class + Problem dataclass
 │   │   ├── sonarqube_parser.py  # SonarQube parser
 │   │   ├── dependency_check_parser.py  # OWASP Dependency-Check parser
-│   │   ├── cyclonedx_parser.py  # CycloneDX SBOM parser
+│   │   └── cyclonedx_parser.py  # CycloneDX SBOM parser
+│   │
+│   ├── tools/                    # 🔌 Modular investigation tools
+│   │   ├── __init__.py           # Auto-discovery and tool registry
+│   │   ├── base_tool.py          # Abstract base class
+│   │   ├── read_file.py          # Read complete file contents
+│   │   ├── read_file_lines.py    # Read specific line ranges
+│   │   ├── search_code.py        # Grep-based pattern search
+│   │   ├── list_directory.py     # List directory contents
+│   │   ├── find_files.py         # Find files by pattern
+│   │   ├── search_sbom.py        # Search SBOM for packages
+│   │   ├── check_import_usage.py # Check Python import usage
+│   │   └── provide_analysis.py   # Final analysis submission
 │   │
 │   ├── config/
 │   │   ├── ai_config.json        # AI model configuration
@@ -165,7 +179,9 @@ AutoTriage/
 │   │
 │   └── tests/                    # Test suite
 │       ├── test_parser_compatibility.py  # Verifies parsers match old behavior
-│       └── test_cyclonedx_parser.py     # CycloneDX-specific tests
+│       ├── test_cyclonedx_parser.py     # CycloneDX-specific tests
+│       ├── test_modular_tools.py        # Tests for modular tool system
+│       └── test_tool_filtering.py       # Tests for dynamic tool availability
 │
 ├── _example_output/              # Example outputs from tools
 │   ├── CycloneDX/               # SBOM examples
@@ -199,6 +215,12 @@ The parsers expect files at these locations (verified to match GitHub workflow):
 | CycloneDX SBOM   | `analysis-inputs/sbom/sbom.json`                                | `input_dir/sbom/sbom.json`                                | ✅ Match |
 
 The workflow downloads artifacts to `analysis-inputs/` directory, and parsers read from the same structure by default.
+
+**SBOM Format**: Currently enforced to be **CycloneDX** format. The system gracefully handles missing SBOMs by:
+
+- Filtering out the `search_sbom` tool from available tools
+- Continuing analysis with other investigation tools
+- This prevents the AI from attempting to use unavailable tools
 
 ## Modular Architecture 🔌
 
@@ -242,7 +264,33 @@ Add support for new security scanning tools by creating parsers.
 
 Creating a new parser is easy - just extend `BaseParser` and implement 3 methods!
 
-### Example: Adding a New Tool
+### Custom Investigation Tools
+
+The AI agent uses investigation tools to analyze your codebase. All tools are now **modular** - one file per tool, with automatic discovery.
+
+**Included Tools** (8 total):
+
+- `read_file` - Read complete file contents
+- `read_file_lines` - Read specific line ranges (for large files)
+- `search_code` - Grep-based pattern search with regex
+- `list_directory` - List directory contents
+- `find_files` - Find files matching glob patterns
+- `search_sbom` - Search SBOM for package info (dynamic availability)
+- `check_import_usage` - Check if Python packages are imported
+- `provide_analysis` - Submit final analysis conclusion
+
+**Add Your Own**: Extend `BaseTool` to add custom investigation capabilities:
+
+- Git history analysis
+- Database schema checks
+- API endpoint discovery
+- Dependency tree traversal
+- Custom static analysis
+- Integration with internal tools
+
+Creating a new tool is simple - define metadata and implement one `execute` method!
+
+### Example: Adding a New Parser
 
 ```python
 # _AutoTriageScripts/parsers/snyk_parser.py
@@ -255,7 +303,26 @@ class SnykParser(BaseParser):
         pass
 ```
 
-No changes needed to core analysis logic! Just register in `__init__.py` and `analyze_dependencies.py`.
+### Example: Adding a New Investigation Tool
+
+```python
+# _AutoTriageScripts/tools/git_blame.py
+from .base_tool import BaseTool
+
+class GitBlameTool(BaseTool):
+    name = "git_blame"
+    description = "Get git blame for a file to see who last modified it"
+    parameters = {
+        "file_path": {"type": "string", "required": True}
+    }
+    requirements = []  # Or specify git executable requirement
+
+    def execute(self, params, workspace_root, input_dir):
+        # Run git blame and return results
+        pass
+```
+
+No changes needed to core analysis logic! The tool is automatically discovered and made available to the AI.
 
 ## Configuration
 
@@ -428,6 +495,43 @@ The modular parser system is **guaranteed to produce identical results** to the 
 - ✅ **CycloneDX Parser**: New parser for SBOM vulnerability extraction
 
 Run `python _AutoTriageScripts/tests/test_parser_compatibility.py` to verify anytime.
+
+### Tool Availability Filtering
+
+The system dynamically filters tools based on their requirements:
+
+**How it works:**
+
+1. Tools can specify requirements (e.g., "SBOM file must exist")
+2. Before each analysis, the system checks which tools are available
+3. Only available tools are shown to the AI
+4. This prevents the AI from trying to use tools that can't function
+
+**Example:** If no SBOM is present, the `search_sbom` tool is automatically hidden from the AI's available tools.
+
+**Test it:**
+
+```bash
+python _AutoTriageScripts/tests/test_tool_filtering.py
+```
+
+**Add requirements to new tools:**
+
+```json
+{
+  "name": "my_tool",
+  "description": "...",
+  "requirements": [
+    {
+      "type": "file_exists",
+      "path": "{input_dir}/myfile.json",
+      "description": "My data file must be present"
+    }
+  ]
+}
+```
+
+Supported requirement types: `file_exists`, `executable`, `optional`
 
 ## Troubleshooting
 

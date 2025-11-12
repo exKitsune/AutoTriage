@@ -11,6 +11,7 @@ from openai import OpenAI
 from llm_client import get_ai_client, query_model
 from tool_executor import ToolExecutor
 from prompt_formatter import format_tools_for_prompt
+from tools import get_all_tool_classes
 
 class AnalysisState(Enum):
     """States that the analysis can be in."""
@@ -68,17 +69,8 @@ class AnalysisAgent:
         Execute a tool by name with the given parameters.
         Returns the tool's result dictionary.
         """
-        try:
-            method = getattr(self.tool_executor, tool_name, None)
-            if not method:
-                return {"error": f"Unknown tool: {tool_name}"}
-            
-            # Tool methods expect a single params dict argument
-            return method(parameters)
-        except TypeError as e:
-            return {"error": f"Invalid parameters for {tool_name}: {str(e)}"}
-        except Exception as e:
-            return {"error": f"Tool execution failed: {str(e)}"}
+        # Use the modular tool system's execute_tool method
+        return self.tool_executor.execute_tool(tool_name, parameters)
     
     def _validate_and_fallback(self, response: str, required_fields: List[str]) -> Dict[str, Any]:
         """
@@ -338,8 +330,8 @@ class AnalysisAgent:
                 # Check if tool doesn't exist and provide helpful guidance
                 if tool_result.get("error") and "Unknown tool" in tool_result["error"]:
                     print(f"  ❌ ERROR: Tool '{tool_name}' does not exist")
-                    available_tools = ["read_file", "read_file_lines", "search_code", "list_directory", 
-                                     "find_files", "search_sbom", "check_import_usage", "provide_analysis"]
+                    # Get available tools dynamically from the tool registry
+                    available_tools = sorted(get_all_tool_classes().keys())
                     error_msg = {
                         "error": f"Tool '{tool_name}' does not exist",
                         "available_tools": available_tools,

@@ -27,6 +27,8 @@ class AnalysisState(Enum):
 class AnalysisResult:
     """Result of the analysis."""
     problem_id: str
+    problem_title: str
+    problem_description: str
     is_applicable: bool
     explanation: str
     severity: str
@@ -155,7 +157,8 @@ class AnalysisAgent:
         """
         print(f"\n{'='*60}")
         print(f"Starting agentic analysis (max {max_iterations} iterations)")
-        print(f"Problem: {self.problem.get('id', 'unknown')}")
+        print(f"Problem: {self.problem.get('title', self.problem.get('id', 'unknown'))}")
+        print(f"ID: {self.problem.get('id', 'unknown')}")
         print(f"{'='*60}\n")
         
         conversation_history = []  # Will store full conversation for debugging
@@ -629,6 +632,8 @@ class AnalysisAgent:
             
             result = AnalysisResult(
                 problem_id=self.problem.get("id", "unknown"),
+                problem_title=self.problem.get("title", "No title"),
+                problem_description=self.problem.get("description", "No description"),
                 is_applicable=analysis.get("is_applicable", False),
                 explanation=analysis.get("explanation", "Analysis unavailable"),
                 severity=final_severity,
@@ -653,6 +658,8 @@ class AnalysisAgent:
             print(f"Critical error in analysis pipeline: {str(e)}")
             return AnalysisResult(
                 problem_id=self.problem.get("id", "unknown"),
+                problem_title=self.problem.get("title", "No title"),
+                problem_description=self.problem.get("description", "No description"),
                 is_applicable=False,
                 explanation=f"Critical analysis failure: {str(e)}",
                 severity=self.problem.get("severity", "UNKNOWN"),
@@ -729,6 +736,8 @@ class AgentSystem:
             "results": [
                 {
                     "problem_id": r.problem_id,
+                    "problem_title": r.problem_title,
+                    "problem_description": r.problem_description,
                     "is_applicable": r.is_applicable,
                     "explanation": r.explanation,
                     "severity": r.severity,
@@ -780,8 +789,10 @@ class AgentSystem:
                     if severity_issues:
                         f.write(f"### {severity} Severity ({len(severity_issues)} issue{'s' if len(severity_issues) > 1 else ''})\n\n")
                         for result in severity_issues:
-                            f.write(f"**{result.problem_id}**\n")
-                            f.write(f"- **Summary:** {result.explanation}\n")
+                            f.write(f"**{result.problem_title}**\n\n")
+                            f.write(f"*{result.problem_description}*\n\n")
+                            f.write(f"- **ID:** `{result.problem_id}`\n")
+                            f.write(f"- **Analysis:** {result.explanation}\n")
                             f.write(f"- **Actions:**\n")
                             for action in result.recommended_actions:
                                 f.write(f"  - {action}\n")
@@ -793,8 +804,10 @@ class AgentSystem:
                 f.write("## ℹ️ Low Priority / Code Quality Issues\n\n")
                 f.write("*These issues are not urgent but may be addressed during refactoring.*\n\n")
                 for result in low_priority:
-                    f.write(f"**{result.problem_id}** ({result.severity})\n")
-                    f.write(f"- **Summary:** {result.explanation}\n")
+                    f.write(f"**{result.problem_title}** ({result.severity})\n\n")
+                    f.write(f"*{result.problem_description}*\n\n")
+                    f.write(f"- **ID:** `{result.problem_id}`\n")
+                    f.write(f"- **Analysis:** {result.explanation}\n")
                     if result.recommended_actions and isinstance(result.recommended_actions, list):
                         actions_str = ', '.join(str(a) for a in result.recommended_actions[:2])
                         f.write(f"- **Suggested Actions:** {actions_str}\n")
@@ -805,7 +818,9 @@ class AgentSystem:
             if false_positives:
                 f.write("## ✅ False Positives / Not Applicable\n\n")
                 for result in false_positives:
-                    f.write(f"**{result.problem_id}** (Severity: {result.severity})\n")
+                    f.write(f"**{result.problem_title}** (Severity: {result.severity})\n\n")
+                    f.write(f"*{result.problem_description}*\n\n")
+                    f.write(f"- **ID:** `{result.problem_id}`\n")
                     f.write(f"- **Reason:** {result.explanation}\n")
                     if result.recommended_actions and isinstance(result.recommended_actions, list):
                         f.write(f"- **Recommendations:**\n")

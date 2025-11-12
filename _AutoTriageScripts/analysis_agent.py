@@ -603,6 +603,11 @@ class AnalysisAgent:
             # fallback responses still provide valid structure with
             # conservative defaults (not applicable, 0 confidence)
             
+            # Validate that analysis is a dict
+            if not isinstance(analysis, dict):
+                print(f"ERROR: analysis is not a dict, it's {type(analysis)}: {analysis}")
+                raise TypeError(f"Expected dict from analysis methods, got {type(analysis)}")
+            
             # Extract conversation history for logging (if present)
             conversation_history = analysis.pop("_conversation_history", [])
             final_message_count = analysis.pop("_final_message_count", 0)
@@ -614,6 +619,11 @@ class AnalysisAgent:
             # Create result (analysis now always has required fields due to fallback)
             # Include reasoning in evidence if provided
             evidence = analysis.get("evidence", {})
+            if isinstance(evidence, str):
+                evidence = {"note": evidence}
+            elif not isinstance(evidence, dict):
+                evidence = {}
+            
             if analysis.get("reasoning"):
                 evidence["reasoning"] = analysis.get("reasoning")
             if final_message_count > 0:
@@ -623,13 +633,21 @@ class AnalysisAgent:
             # The AI may provide a more accurate severity based on actual real-world impact
             final_severity = analysis.get("real_severity", self.problem.get("severity", "UNKNOWN"))
             
+            # Ensure recommended_actions is a list
+            rec_actions = analysis.get("recommended_actions", ["Manual review required"])
+            if not isinstance(rec_actions, list):
+                if isinstance(rec_actions, str):
+                    rec_actions = [rec_actions]
+                else:
+                    rec_actions = ["Manual review required"]
+            
             result = AnalysisResult(
                 problem_id=self.problem.get("id", "unknown"),
                 is_applicable=analysis.get("is_applicable", False),
                 confidence=analysis.get("confidence", 0.0),
                 explanation=analysis.get("explanation", "Analysis unavailable"),
                 severity=final_severity,
-                recommended_actions=analysis.get("recommended_actions", ["Manual review required"]),
+                recommended_actions=rec_actions,
                 evidence=evidence,
                 analysis_steps=self.analysis_steps,
                 reasoning=analysis.get("reasoning", "")
@@ -795,8 +813,9 @@ class AgentSystem:
                 for result in low_priority:
                     f.write(f"**{result.problem_id}** ({result.severity})\n")
                     f.write(f"- **Summary:** {result.explanation}\n")
-                    if result.recommended_actions:
-                        f.write(f"- **Suggested Actions:** {', '.join(result.recommended_actions[:2])}\n")
+                    if result.recommended_actions and isinstance(result.recommended_actions, list):
+                        actions_str = ', '.join(str(a) for a in result.recommended_actions[:2])
+                        f.write(f"- **Suggested Actions:** {actions_str}\n")
                     f.write("\n")
             
             # False positives
@@ -807,7 +826,7 @@ class AgentSystem:
                     f.write(f"**{result.problem_id}** (Severity: {result.severity})\n")
                     f.write(f"- **Confidence:** {result.confidence:.0%}\n")
                     f.write(f"- **Reason:** {result.explanation}\n")
-                    if result.recommended_actions:
+                    if result.recommended_actions and isinstance(result.recommended_actions, list):
                         f.write(f"- **Recommendations:**\n")
                         for action in result.recommended_actions:
                             f.write(f"  - {action}\n")

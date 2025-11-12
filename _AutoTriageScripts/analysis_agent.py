@@ -37,6 +37,16 @@ class AnalysisResult:
     evidence: Dict[str, Any]
     analysis_steps: List[Dict[str, Any]]  # Track the analysis process
     reasoning: str = ""  # LLM's accumulated reasoning/thought process during analysis
+    investigation_summary: str = ""  # Summary of what the LLM did to reach its conclusion
+    verification_steps: List[str] = None  # How user can verify the findings themselves
+    limitations: List[str] = None  # What the LLM couldn't check or missed
+    
+    def __post_init__(self):
+        """Initialize mutable defaults."""
+        if self.verification_steps is None:
+            self.verification_steps = []
+        if self.limitations is None:
+            self.limitations = []
 
 class AnalysisAgent:
     """Agent responsible for analyzing a single security/quality problem."""
@@ -106,10 +116,16 @@ class AnalysisAgent:
                     data[field] = False  # Conservative default
                 elif field == "explanation":
                     data[field] = "No explanation provided by AI"
+                elif field == "investigation_summary":
+                    data[field] = "Investigation summary not provided"
                 elif field == "evidence":
                     data[field] = {}
                 elif field == "recommended_actions":
                     data[field] = []
+                elif field == "verification_steps":
+                    data[field] = ["Manually review the issue"]
+                elif field == "limitations":
+                    data[field] = ["Analysis completeness unknown"]
         
         # Validate field types
         if "is_applicable" in data and not isinstance(data["is_applicable"], bool):
@@ -225,7 +241,7 @@ class AnalysisAgent:
                 # Check if this is the final analysis
                 if tool_name == "provide_analysis":
                     # First validate required fields are present
-                    required_fields = ["is_applicable", "real_severity", "explanation", "evidence", "recommended_actions"]
+                    required_fields = ["is_applicable", "real_severity", "explanation", "investigation_summary", "evidence", "recommended_actions", "verification_steps"]
                     missing_fields = [f for f in required_fields if f not in parameters]
                     
                     # Check for common mistakes in parameter names
@@ -631,6 +647,15 @@ class AnalysisAgent:
                 else:
                     rec_actions = ["Manual review required"]
             
+            # Ensure verification_steps and limitations are lists
+            verification_steps = analysis.get("verification_steps", [])
+            if not isinstance(verification_steps, list):
+                verification_steps = [str(verification_steps)] if verification_steps else []
+            
+            limitations = analysis.get("limitations", [])
+            if not isinstance(limitations, list):
+                limitations = [str(limitations)] if limitations else []
+            
             result = AnalysisResult(
                 problem_id=self.problem.get("id", "unknown"),
                 problem_title=self.problem.get("title", "No title"),
@@ -642,7 +667,10 @@ class AnalysisAgent:
                 recommended_actions=rec_actions,
                 evidence=evidence,
                 analysis_steps=self.analysis_steps,
-                reasoning=analysis.get("reasoning", "")
+                reasoning=analysis.get("reasoning", ""),
+                investigation_summary=analysis.get("investigation_summary", ""),
+                verification_steps=verification_steps,
+                limitations=limitations
             )
             
             # Set state based on whether there was an error
@@ -669,7 +697,10 @@ class AnalysisAgent:
                 recommended_actions=["Manual review required - analysis pipeline failed"],
                 evidence={"critical_error": str(e)},
                 analysis_steps=self.analysis_steps,
-                reasoning=""
+                reasoning="",
+                investigation_summary="Analysis failed before investigation could complete",
+                verification_steps=["Manually review the issue details", "Check logs for error details"],
+                limitations=["Automated analysis failed - full manual review required"]
             )
 
 class AgentSystem:
@@ -745,7 +776,10 @@ class AgentSystem:
                     "is_applicable": r.is_applicable,
                     "explanation": r.explanation,
                     "severity": r.severity,
+                    "investigation_summary": r.investigation_summary,
                     "recommended_actions": r.recommended_actions,
+                    "verification_steps": r.verification_steps,
+                    "limitations": r.limitations,
                     "evidence": r.evidence,
                     "analysis_steps": r.analysis_steps,
                     "reasoning": r.reasoning
@@ -809,10 +843,20 @@ class AgentSystem:
                             f.write(f"**Problem:** {result.problem_title}\n\n")
                             f.write(f"**Description:** {result.problem_description}\n\n")
                             f.write(f"- **ID:** `{result.problem_id}`\n")
+                            if result.investigation_summary:
+                                f.write(f"- **Investigation:** {result.investigation_summary}\n")
                             f.write(f"- **Analysis:** {result.explanation}\n")
                             f.write(f"- **Actions:**\n")
                             for action in result.recommended_actions:
                                 f.write(f"  - {action}\n")
+                            if result.verification_steps:
+                                f.write(f"- **Verify Yourself:**\n")
+                                for step in result.verification_steps:
+                                    f.write(f"  - {step}\n")
+                            if result.limitations:
+                                f.write(f"- **Limitations:**\n")
+                                for limitation in result.limitations:
+                                    f.write(f"  - {limitation}\n")
                             f.write("\n")
             
             # Low priority vulnerabilities
@@ -824,11 +868,21 @@ class AgentSystem:
                     f.write(f"**Description:** {result.problem_description}\n\n")
                     f.write(f"- **ID:** `{result.problem_id}`\n")
                     f.write(f"- **Severity:** {result.severity}\n")
+                    if result.investigation_summary:
+                        f.write(f"- **Investigation:** {result.investigation_summary}\n")
                     f.write(f"- **Analysis:** {result.explanation}\n")
                     if result.recommended_actions and isinstance(result.recommended_actions, list):
                         f.write(f"- **Suggested Actions:**\n")
                         for action in result.recommended_actions:
                             f.write(f"  - {action}\n")
+                    if result.verification_steps:
+                        f.write(f"- **Verify Yourself:**\n")
+                        for step in result.verification_steps:
+                            f.write(f"  - {step}\n")
+                    if result.limitations:
+                        f.write(f"- **Limitations:**\n")
+                        for limitation in result.limitations:
+                            f.write(f"  - {limitation}\n")
                     f.write("\n")
             
             # Code quality issues (separate from vulnerabilities)
@@ -840,11 +894,21 @@ class AgentSystem:
                     f.write(f"**Description:** {result.problem_description}\n\n")
                     f.write(f"- **ID:** `{result.problem_id}`\n")
                     f.write(f"- **Severity:** {result.severity}\n")
+                    if result.investigation_summary:
+                        f.write(f"- **Investigation:** {result.investigation_summary}\n")
                     f.write(f"- **Analysis:** {result.explanation}\n")
                     if result.recommended_actions and isinstance(result.recommended_actions, list):
                         f.write(f"- **Suggested Actions:**\n")
                         for action in result.recommended_actions:
                             f.write(f"  - {action}\n")
+                    if result.verification_steps:
+                        f.write(f"- **Verify Yourself:**\n")
+                        for step in result.verification_steps:
+                            f.write(f"  - {step}\n")
+                    if result.limitations:
+                        f.write(f"- **Limitations:**\n")
+                        for limitation in result.limitations:
+                            f.write(f"  - {limitation}\n")
                     f.write("\n")
             
             # False positives
@@ -856,9 +920,19 @@ class AgentSystem:
                     f.write(f"**Description:** {result.problem_description}\n\n")
                     f.write(f"- **ID:** `{result.problem_id}`\n")
                     f.write(f"- **Severity:** {result.severity}\n")
+                    if result.investigation_summary:
+                        f.write(f"- **Investigation:** {result.investigation_summary}\n")
                     f.write(f"- **Reason:** {result.explanation}\n")
                     if result.recommended_actions and isinstance(result.recommended_actions, list):
                         f.write(f"- **Recommendations:**\n")
                         for action in result.recommended_actions:
                             f.write(f"  - {action}\n")
+                    if result.verification_steps:
+                        f.write(f"- **Verify Yourself:**\n")
+                        for step in result.verification_steps:
+                            f.write(f"  - {step}\n")
+                    if result.limitations:
+                        f.write(f"- **Limitations:**\n")
+                        for limitation in result.limitations:
+                            f.write(f"  - {limitation}\n")
                     f.write("\n")

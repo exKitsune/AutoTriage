@@ -29,6 +29,7 @@ class AnalysisResult:
     problem_id: str
     problem_title: str
     problem_description: str
+    problem_type: str  # vulnerability, code_smell, bug, etc.
     is_applicable: bool
     explanation: str
     severity: str
@@ -634,6 +635,7 @@ class AnalysisAgent:
                 problem_id=self.problem.get("id", "unknown"),
                 problem_title=self.problem.get("title", "No title"),
                 problem_description=self.problem.get("description", "No description"),
+                problem_type=self.problem.get("type", "unknown"),
                 is_applicable=analysis.get("is_applicable", False),
                 explanation=analysis.get("explanation", "Analysis unavailable"),
                 severity=final_severity,
@@ -660,6 +662,7 @@ class AnalysisAgent:
                 problem_id=self.problem.get("id", "unknown"),
                 problem_title=self.problem.get("title", "No title"),
                 problem_description=self.problem.get("description", "No description"),
+                problem_type=self.problem.get("type", "unknown"),
                 is_applicable=False,
                 explanation=f"Critical analysis failure: {str(e)}",
                 severity=self.problem.get("severity", "UNKNOWN"),
@@ -738,6 +741,7 @@ class AgentSystem:
                     "problem_id": r.problem_id,
                     "problem_title": r.problem_title,
                     "problem_description": r.problem_description,
+                    "problem_type": r.problem_type,
                     "is_applicable": r.is_applicable,
                     "explanation": r.explanation,
                     "severity": r.severity,
@@ -764,33 +768,46 @@ class AgentSystem:
         # Write markdown summary
         summary_file = output_dir / "analysis_summary.md"
         with open(summary_file, 'w') as f:
-            # Count important issues only (CRITICAL, HIGH, MEDIUM)
-            important_count = len([r for r in self.results if r.is_applicable and r.severity in ["CRITICAL", "HIGH", "MEDIUM"]])
-            low_priority_count = len([r for r in self.results if r.is_applicable and r.severity in ["LOW", "TRIVIAL"]])
+            # Count categories - separate vulnerabilities from code quality
+            # Vulnerabilities: type='vulnerability' from dependency-check or cyclonedx
+            # Code quality: type='code_smell', 'bug' from sonarqube
+            is_vulnerability = lambda r: r.problem_type in ['vulnerability', 'security-hotspot']
+            is_code_quality = lambda r: r.problem_type in ['code_smell', 'bug', 'code-smell']
+            
+            important_vulns = [r for r in self.results if r.is_applicable and is_vulnerability(r) and r.severity in ["CRITICAL", "HIGH", "MEDIUM"]]
+            low_vulns = [r for r in self.results if r.is_applicable and is_vulnerability(r) and r.severity in ["LOW", "TRIVIAL"]]
+            code_quality = [r for r in self.results if r.is_applicable and is_code_quality(r)]
             false_positive_count = len([r for r in self.results if not r.is_applicable])
             
+            # Header
             f.write("# Security and Quality Analysis Summary\n\n")
             f.write(f"**Date:** {report.get('analysis_metadata', {}).get('analysis_date', 'N/A')}\n")
             f.write(f"**Total Issues Analyzed:** {report['summary']['total_problems']}\n")
-            f.write(f"**Issues Requiring Attention:** {important_count} (CRITICAL/HIGH/MEDIUM)\n")
-            if low_priority_count > 0:
-                f.write(f"**Low Priority Issues:** {low_priority_count}\n")
+            f.write(f"**Security Issues Requiring Attention:** {len(important_vulns)} (CRITICAL/HIGH/MEDIUM)\n")
+            f.write(f"**Code Quality Issues:** {len(code_quality)}\n")
             f.write(f"**False Positives/Not Applicable:** {false_positive_count}\n\n")
             
-            # Applicable issues by severity - only show important issues (CRITICAL, HIGH, MEDIUM)
-            important_issues = [r for r in self.results if r.is_applicable and r.severity in ["CRITICAL", "HIGH", "MEDIUM"]]
-            if important_issues:
-                f.write("## 🚨 Issues Requiring Attention\n\n")
+            # Analysis Details at the top
+            f.write("## 📊 Analysis Details\n\n")
+            f.write(f"- **Problems by Severity:**\n")
+            for severity, count in report["summary"]["by_severity"].items():
+                f.write(f"  - {severity}: {count}\n")
+            f.write(f"- **Total Investigation Steps:** {sum(len(r.analysis_steps) for r in self.results)}\n\n")
+            f.write("---\n\n")
+            
+            # Security vulnerabilities - only show important issues (CRITICAL, HIGH, MEDIUM)
+            if important_vulns:
+                f.write("## 🚨 Security Issues Requiring Attention\n\n")
                 
                 # Group by severity - only important ones
                 severity_order = ["CRITICAL", "HIGH", "MEDIUM"]
                 for severity in severity_order:
-                    severity_issues = [r for r in important_issues if r.severity == severity]
+                    severity_issues = [r for r in important_vulns if r.severity == severity]
                     if severity_issues:
                         f.write(f"### {severity} Severity ({len(severity_issues)} issue{'s' if len(severity_issues) > 1 else ''})\n\n")
                         for result in severity_issues:
-                            f.write(f"**{result.problem_title}**\n\n")
-                            f.write(f"*{result.problem_description}*\n\n")
+                            f.write(f"**Problem:** {result.problem_title}\n\n")
+                            f.write(f"**Description:** {result.problem_description}\n\n")
                             f.write(f"- **ID:** `{result.problem_id}`\n")
                             f.write(f"- **Analysis:** {result.explanation}\n")
                             f.write(f"- **Actions:**\n")
@@ -798,19 +815,36 @@ class AgentSystem:
                                 f.write(f"  - {action}\n")
                             f.write("\n")
             
-            # Low priority issues (for reference, not urgent)
-            low_priority = [r for r in self.results if r.is_applicable and r.severity in ["LOW", "TRIVIAL"]]
-            if low_priority:
-                f.write("## ℹ️ Low Priority / Code Quality Issues\n\n")
-                f.write("*These issues are not urgent but may be addressed during refactoring.*\n\n")
-                for result in low_priority:
-                    f.write(f"**{result.problem_title}** ({result.severity})\n\n")
-                    f.write(f"*{result.problem_description}*\n\n")
+            # Low priority vulnerabilities
+            if low_vulns:
+                f.write("## ⚠️ Low Priority Security Issues\n\n")
+                f.write("*These vulnerabilities are low severity but should be addressed during maintenance.*\n\n")
+                for result in low_vulns:
+                    f.write(f"**Problem:** {result.problem_title}\n\n")
+                    f.write(f"**Description:** {result.problem_description}\n\n")
                     f.write(f"- **ID:** `{result.problem_id}`\n")
+                    f.write(f"- **Severity:** {result.severity}\n")
                     f.write(f"- **Analysis:** {result.explanation}\n")
                     if result.recommended_actions and isinstance(result.recommended_actions, list):
-                        actions_str = ', '.join(str(a) for a in result.recommended_actions[:2])
-                        f.write(f"- **Suggested Actions:** {actions_str}\n")
+                        f.write(f"- **Suggested Actions:**\n")
+                        for action in result.recommended_actions:
+                            f.write(f"  - {action}\n")
+                    f.write("\n")
+            
+            # Code quality issues (separate from vulnerabilities)
+            if code_quality:
+                f.write("## 🔧 Code Quality Issues\n\n")
+                f.write("*These are code quality concerns, not security vulnerabilities.*\n\n")
+                for result in code_quality:
+                    f.write(f"**Problem:** {result.problem_title}\n\n")
+                    f.write(f"**Description:** {result.problem_description}\n\n")
+                    f.write(f"- **ID:** `{result.problem_id}`\n")
+                    f.write(f"- **Severity:** {result.severity}\n")
+                    f.write(f"- **Analysis:** {result.explanation}\n")
+                    if result.recommended_actions and isinstance(result.recommended_actions, list):
+                        f.write(f"- **Suggested Actions:**\n")
+                        for action in result.recommended_actions:
+                            f.write(f"  - {action}\n")
                     f.write("\n")
             
             # False positives
@@ -818,20 +852,13 @@ class AgentSystem:
             if false_positives:
                 f.write("## ✅ False Positives / Not Applicable\n\n")
                 for result in false_positives:
-                    f.write(f"**{result.problem_title}** (Severity: {result.severity})\n\n")
-                    f.write(f"*{result.problem_description}*\n\n")
+                    f.write(f"**Problem:** {result.problem_title}\n\n")
+                    f.write(f"**Description:** {result.problem_description}\n\n")
                     f.write(f"- **ID:** `{result.problem_id}`\n")
+                    f.write(f"- **Severity:** {result.severity}\n")
                     f.write(f"- **Reason:** {result.explanation}\n")
                     if result.recommended_actions and isinstance(result.recommended_actions, list):
                         f.write(f"- **Recommendations:**\n")
                         for action in result.recommended_actions:
                             f.write(f"  - {action}\n")
                     f.write("\n")
-            
-            # Add metadata
-            f.write("---\n\n")
-            f.write("## Analysis Details\n\n")
-            f.write(f"- **Problems by Severity:**\n")
-            for severity, count in report["summary"]["by_severity"].items():
-                f.write(f"  - {severity}: {count}\n")
-            f.write(f"- **Total Investigation Steps:** {sum(len(r.analysis_steps) for r in self.results)}\n")

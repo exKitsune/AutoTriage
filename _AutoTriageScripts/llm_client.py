@@ -60,18 +60,22 @@ def get_ai_client(config: Dict[str, Any]) -> BaseLLMProvider:
     ai_providers = config.get("ai_providers", {})
     
     if "openrouter" in ai_providers:
-        provider_config = ai_providers["openrouter"]
+        provider_config = ai_providers["openrouter"].copy()
         
         # Merge analysis settings into provider config
         if "analysis" in config:
             provider_config.update({
                 "max_retries": config["analysis"].get("max_retries", 3),
+                "retry_delay_seconds": config["analysis"].get("retry_delay_seconds", 5),
                 "timeout_seconds": config["analysis"].get("timeout_seconds", 300),
             })
         
-        # Get model from nested structure
-        if "models" in provider_config and "default" in provider_config["models"]:
-            provider_config["model"] = provider_config["models"]["default"]
+        # Get models from nested structure
+        if "models" in provider_config:
+            if "default" in provider_config["models"]:
+                provider_config["model"] = provider_config["models"]["default"]
+            if "backup" in provider_config["models"]:
+                provider_config["backup_model"] = provider_config["models"]["backup"]
         
         provider = OpenRouterProvider(provider_config)
         

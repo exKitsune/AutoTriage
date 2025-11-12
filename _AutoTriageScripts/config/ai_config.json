@@ -3,12 +3,14 @@
     "openrouter": {
       "api_base": "https://openrouter.ai/api/v1",
       "models": {
-        "default": "qwen/qwen3-30b-a3b:free"
+        "default": "qwen/qwen3-30b-a3b:free",
+        "backup": "deepseek/deepseek-chat-v3.1:free"
       }
     }
   },
   "analysis": {
     "max_retries": 3,
+    "retry_delay_seconds": 5,
     "timeout_seconds": 300,
     "confidence_threshold": 0.8,
     "context_tokens": 100000

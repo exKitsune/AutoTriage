@@ -28,7 +28,9 @@ class OpenRouterProvider(BaseLLMProvider):
             config: Configuration dict containing:
                 - api_base: OpenRouter API base URL (default: https://openrouter.ai/api/v1)
                 - model: Model identifier (e.g., "anthropic/claude-3.5-sonnet")
+                - backup_model: Optional backup model for fallback
                 - max_retries: Number of retry attempts (default: 3)
+                - retry_delay_seconds: Delay between full retry cycles (default: 5)
                 - timeout_seconds: Request timeout in seconds (default: 300)
         
         Environment Variables:
@@ -39,7 +41,9 @@ class OpenRouterProvider(BaseLLMProvider):
         # Get OpenRouter-specific config
         self.api_base = config.get("api_base", "https://openrouter.ai/api/v1")
         self.model = config.get("model", "anthropic/claude-3.5-sonnet")
+        self.backup_model = config.get("backup_model", None)
         self.max_retries = config.get("max_retries", 3)
+        self.retry_delay = config.get("retry_delay_seconds", 5)
         self.timeout = config.get("timeout_seconds", 300)
         
         # Initialize OpenAI-compatible client
@@ -51,6 +55,12 @@ class OpenRouterProvider(BaseLLMProvider):
             base_url=self.api_base,
             api_key=api_key
         )
+        
+        # Log configuration
+        if self.backup_model:
+            print(f"🤖 LLM configured: {self.model} (backup: {self.backup_model})")
+        else:
+            print(f"🤖 LLM configured: {self.model} (no backup)")
     
     def query(
         self,
@@ -61,7 +71,10 @@ class OpenRouterProvider(BaseLLMProvider):
         """
         Send a message conversation to OpenRouter and get a response.
         
-        Includes retry logic with exponential backoff for transient failures.
+        Implements intelligent retry logic with backup model fallback:
+        1. Try main model
+        2. On rate limit/provider error, try backup model (if configured)
+        3. If both fail, wait and retry the entire sequence
         
         Args:
             messages: List of message dicts with 'role' and 'content'
@@ -74,46 +87,96 @@ class OpenRouterProvider(BaseLLMProvider):
         Raises:
             RuntimeError: If all retry attempts fail
         """
-        model_name = model or self.model
+        primary_model = model or self.model
         
         last_error = None
         for attempt in range(self.max_retries):
+            # Try primary model
             try:
-                completion = self.client.chat.completions.create(
-                    model=model_name,
-                    messages=messages,
-                    timeout=self.timeout,
-                    **kwargs
-                )
-                
-                if not completion.choices:
-                    raise RuntimeError("LLM returned empty response")
-                
-                response = completion.choices[0].message.content
-                if not response:
-                    raise RuntimeError("LLM returned None response")
-                    
-                return response
-                
+                result = self._query_single_model(primary_model, messages, **kwargs)
+                if result:
+                    return result
             except Exception as e:
                 last_error = e
                 error_msg = str(e).lower()
                 
-                # Don't retry on certain errors
+                # Check for non-retryable errors (authentication, invalid config, etc.)
                 if any(keyword in error_msg for keyword in ["invalid", "authentication", "api_key"]):
                     raise RuntimeError(f"OpenRouter query failed (non-retryable): {str(e)}")
                 
-                # For retryable errors, wait before retrying
+                # Check if this is a rate limit or provider error
+                is_rate_limit = "429" in str(e) or "rate" in error_msg or "limit" in error_msg
+                is_provider_error = "provider" in error_msg or "upstream" in error_msg
+                
+                # Try backup model if we have one and the error is recoverable
+                if self.backup_model and (is_rate_limit or is_provider_error):
+                    print(f"  ⚠️  Primary model ({primary_model}) unavailable: {str(e)}")
+                    print(f"  🔄 Trying backup model: {self.backup_model}")
+                    
+                    try:
+                        result = self._query_single_model(self.backup_model, messages, **kwargs)
+                        if result:
+                            print(f"  ✅ Backup model succeeded!")
+                            return result
+                    except Exception as backup_error:
+                        print(f"  ⚠️  Backup model also failed: {str(backup_error)}")
+                        last_error = backup_error
+                
+                # If we're not on the last attempt, wait and retry
                 if attempt < self.max_retries - 1:
-                    wait_time = (attempt + 1) * 2  # Exponential backoff: 2s, 4s, 6s
-                    print(f"OpenRouter query attempt {attempt + 1} failed: {str(e)}")
-                    print(f"Retrying in {wait_time} seconds...")
+                    wait_time = self.retry_delay
+                    print(f"  ⏳ Retrying full sequence in {wait_time} seconds... (attempt {attempt + 1}/{self.max_retries})")
                     time.sleep(wait_time)
                 else:
                     # Last attempt failed
+                    models_tried = [primary_model]
+                    if self.backup_model:
+                        models_tried.append(self.backup_model)
+                    
                     raise RuntimeError(
-                        f"OpenRouter query failed after {self.max_retries} attempts: {str(last_error)}"
+                        f"All models failed after {self.max_retries} attempts. "
+                        f"Models tried: {', '.join(models_tried)}. "
+                        f"Last error: {str(last_error)}"
                     )
+        
+        # Should never reach here, but just in case
+        raise RuntimeError(f"Query failed unexpectedly: {str(last_error)}")
+    
+    def _query_single_model(
+        self,
+        model_name: str,
+        messages: List[Dict[str, str]],
+        **kwargs
+    ) -> str:
+        """
+        Query a single model without retry logic.
+        
+        Args:
+            model_name: The model to query
+            messages: List of message dicts
+            **kwargs: Additional parameters
+        
+        Returns:
+            The model's response text
+            
+        Raises:
+            Exception: If the query fails
+        """
+        completion = self.client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            timeout=self.timeout,
+            **kwargs
+        )
+        
+        if not completion.choices:
+            raise RuntimeError(f"Model {model_name} returned empty response")
+        
+        response = completion.choices[0].message.content
+        if not response:
+            raise RuntimeError(f"Model {model_name} returned None response")
+            
+        return response
     
     def validate_config(self) -> bool:
         """

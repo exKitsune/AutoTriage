@@ -20,7 +20,7 @@ AutoTriage uses an agentic AI system to analyze security vulnerabilities and cod
    - Searches for patterns (imports, function usage)
    - Checks SBOM for package information
    - Analyzes file structures
-3. **Contextualized Results**: Provides actionable reports with confidence scores and evidence
+3. **Contextualized Results**: Provides actionable reports with scores and evidence
 
 ### The Agentic Loop
 
@@ -35,7 +35,7 @@ The AI agent uses an iterative tool-calling approach:
    → Calls: check_import_usage("yaml")
 5. Receives result: { is_imported: false }
 6. LLM concludes
-   → Calls: provide_analysis(is_applicable=false, confidence=0.9, ...)
+   → Calls: provide_analysis(is_applicable=false, ...)
 ```
 
 This continues for up to 5 iterations per issue.
@@ -400,7 +400,6 @@ The system accepts problems from three sources:
     {
       "problem_id": "CVE-2020-1234",
       "is_applicable": false,
-      "confidence": 0.9,
       "explanation": "PyYAML is in requirements.txt but never imported...",
       "evidence": {
         "in_requirements": true,
@@ -550,7 +549,7 @@ Supported requirement types: `file_exists`, `executable`, `optional`
 ### "Max iterations reached"
 
 **Cause**: LLM couldn't reach conclusion within 5 tool calls
-**Solution**: This triggers automatic fallback with conservative defaults (not applicable, low confidence)
+**Solution**: This triggers automatic fallback with conservative defaults (not applicable)
 
 ### Empty Analysis Summary
 

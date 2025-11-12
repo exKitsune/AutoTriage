@@ -113,26 +113,23 @@ def test_validation_functions():
         # Test valid JSON response
         valid_response = json.dumps({
             "is_applicable": True,
-            "confidence": 0.8,
             "explanation": "Test explanation",
             "evidence": {"test": "data"},
             "recommended_actions": ["action1"]
         })
         
         result = agent._validate_and_fallback(valid_response, 
-            ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"])
+            ["is_applicable", "explanation", "evidence", "recommended_actions"])
         
         assert result["is_applicable"] == True
-        assert result["confidence"] == 0.8
         print("✓ Valid JSON validation works")
         
         # Test invalid JSON response
         invalid_response = "This is not valid JSON {{"
         result = agent._validate_and_fallback(invalid_response,
-            ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"])
+            ["is_applicable",  "explanation", "evidence", "recommended_actions"])
         
         assert result["is_applicable"] == False  # Fallback is conservative
-        assert result["confidence"] == 0.0
         print("✓ Invalid JSON fallback works")
         
         # Test missing fields
@@ -141,9 +138,8 @@ def test_validation_functions():
             # Missing other fields
         })
         result = agent._validate_and_fallback(incomplete_response,
-            ["is_applicable", "confidence", "explanation", "evidence", "recommended_actions"])
+            ["is_applicable", "explanation", "evidence", "recommended_actions"])
         
-        assert "confidence" in result  # Should have been filled in
         assert "explanation" in result
         print("✓ Missing fields fallback works")
         

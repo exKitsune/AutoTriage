@@ -12,7 +12,6 @@
     "max_retries": 3,
     "retry_delay_seconds": 5,
     "timeout_seconds": 300,
-    "confidence_threshold": 0.8,
     "context_tokens": 100000
   },
   "external_apis": {

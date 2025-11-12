@@ -24,11 +24,6 @@ class ProvideAnalysisTool(BaseTool):
             "description": "Whether the reported issue is actually a real problem that needs attention",
             "required": True
         },
-        "confidence": {
-            "type": "string",
-            "description": "Your confidence level in the assessment. Options: 'high', 'medium', 'low'",
-            "required": True
-        },
         "real_severity": {
             "type": "string",
             "description": "The actual severity if applicable. Options: 'critical', 'high', 'medium', 'low', 'info'",
@@ -62,7 +57,6 @@ class ProvideAnalysisTool(BaseTool):
             "tool": "provide_analysis",
             "parameters": {
                 "is_applicable": True,
-                "confidence": "high",
                 "real_severity": "medium",
                 "explanation": "The vulnerability is real but already mitigated by input validation",
                 "evidence": [

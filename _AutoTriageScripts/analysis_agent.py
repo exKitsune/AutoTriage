@@ -28,7 +28,6 @@ class AnalysisResult:
     """Result of the analysis."""
     problem_id: str
     is_applicable: bool
-    confidence: float  # 0.0 to 1.0
     explanation: str
     severity: str
     recommended_actions: List[str]
@@ -102,8 +101,6 @@ class AnalysisAgent:
             for field in missing_fields:
                 if field == "is_applicable":
                     data[field] = False  # Conservative default
-                elif field == "confidence":
-                    data[field] = 0.0
                 elif field == "explanation":
                     data[field] = "No explanation provided by AI"
                 elif field == "evidence":
@@ -114,14 +111,6 @@ class AnalysisAgent:
         # Validate field types
         if "is_applicable" in data and not isinstance(data["is_applicable"], bool):
             data["is_applicable"] = bool(data["is_applicable"])
-        
-        if "confidence" in data:
-            try:
-                confidence = float(data["confidence"])
-                data["confidence"] = max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
-            except (ValueError, TypeError):
-                print(f"Warning: Invalid confidence value: {data['confidence']}")
-                data["confidence"] = 0.5
         
         if "recommended_actions" in data and not isinstance(data["recommended_actions"], list):
             data["recommended_actions"] = []
@@ -141,7 +130,6 @@ class AnalysisAgent:
         """
         return {
             "is_applicable": False,  # Conservative: assume not applicable on error
-            "confidence": 0.0,
             "real_severity": "LOW",  # Conservative default for failed analysis
             "explanation": f"Analysis failed: {error}. Manual review recommended.",
             "evidence": {"error": error, "raw_response": raw_response if raw_response else ""},
@@ -163,7 +151,7 @@ class AnalysisAgent:
             max_iterations: Maximum number of tool calls before forcing conclusion
         
         Returns:
-            Analysis result dict with is_applicable, confidence, explanation, etc.
+            Analysis result dict with is_applicable, explanation, etc.
         """
         print(f"\n{'='*60}")
         print(f"Starting agentic analysis (max {max_iterations} iterations)")
@@ -233,7 +221,7 @@ class AnalysisAgent:
                 # Check if this is the final analysis
                 if tool_name == "provide_analysis":
                     # First validate required fields are present
-                    required_fields = ["is_applicable", "confidence", "real_severity", "explanation", "evidence", "recommended_actions"]
+                    required_fields = ["is_applicable", "real_severity", "explanation", "evidence", "recommended_actions"]
                     missing_fields = [f for f in required_fields if f not in parameters]
                     
                     # Check for common mistakes in parameter names
@@ -278,7 +266,6 @@ class AnalysisAgent:
                     
                     print(f"\n  ✅ ANALYSIS COMPLETE")
                     print(f"  Is Applicable: {parameters.get('is_applicable', 'N/A')}")
-                    print(f"  Confidence: {parameters.get('confidence', 'N/A')}")
                     print(f"  Explanation: {parameters.get('explanation', 'N/A')}...")
                     if accumulated_reasoning:
                         print(f"  Accumulated Reasoning Steps: {len(accumulated_reasoning)}")
@@ -584,8 +571,7 @@ class AnalysisAgent:
         Run the full analysis pipeline.
         Returns an AnalysisResult with the findings.
         
-        Even if errors occur, returns a result with fallback values
-        and low confidence to enable manual review.
+        Even if errors occur, returns a result with fallback values to enable manual review.
         
         Args:
             output_dir: Optional output directory for saving conversation logs
@@ -601,7 +587,7 @@ class AnalysisAgent:
             
             # Note: We no longer raise on "error" in analysis because
             # fallback responses still provide valid structure with
-            # conservative defaults (not applicable, 0 confidence)
+            # conservative defaults (not applicable)
             
             # Validate that analysis is a dict
             if not isinstance(analysis, dict):
@@ -644,7 +630,6 @@ class AnalysisAgent:
             result = AnalysisResult(
                 problem_id=self.problem.get("id", "unknown"),
                 is_applicable=analysis.get("is_applicable", False),
-                confidence=analysis.get("confidence", 0.0),
                 explanation=analysis.get("explanation", "Analysis unavailable"),
                 severity=final_severity,
                 recommended_actions=rec_actions,
@@ -669,7 +654,6 @@ class AnalysisAgent:
             return AnalysisResult(
                 problem_id=self.problem.get("id", "unknown"),
                 is_applicable=False,
-                confidence=0.0,
                 explanation=f"Critical analysis failure: {str(e)}",
                 severity=self.problem.get("severity", "UNKNOWN"),
                 recommended_actions=["Manual review required - analysis pipeline failed"],
@@ -746,7 +730,6 @@ class AgentSystem:
                 {
                     "problem_id": r.problem_id,
                     "is_applicable": r.is_applicable,
-                    "confidence": r.confidence,
                     "explanation": r.explanation,
                     "severity": r.severity,
                     "recommended_actions": r.recommended_actions,
@@ -798,7 +781,6 @@ class AgentSystem:
                         f.write(f"### {severity} Severity ({len(severity_issues)} issue{'s' if len(severity_issues) > 1 else ''})\n\n")
                         for result in severity_issues:
                             f.write(f"**{result.problem_id}**\n")
-                            f.write(f"- **Confidence:** {result.confidence:.0%}\n")
                             f.write(f"- **Summary:** {result.explanation}\n")
                             f.write(f"- **Actions:**\n")
                             for action in result.recommended_actions:
@@ -824,7 +806,6 @@ class AgentSystem:
                 f.write("## ✅ False Positives / Not Applicable\n\n")
                 for result in false_positives:
                     f.write(f"**{result.problem_id}** (Severity: {result.severity})\n")
-                    f.write(f"- **Confidence:** {result.confidence:.0%}\n")
                     f.write(f"- **Reason:** {result.explanation}\n")
                     if result.recommended_actions and isinstance(result.recommended_actions, list):
                         f.write(f"- **Recommendations:**\n")
@@ -839,4 +820,3 @@ class AgentSystem:
             for severity, count in report["summary"]["by_severity"].items():
                 f.write(f"  - {severity}: {count}\n")
             f.write(f"- **Total Investigation Steps:** {sum(len(r.analysis_steps) for r in self.results)}\n")
-            f.write(f"- **Average Confidence:** {sum(r.confidence for r in self.results) / len(self.results):.0%}\n")

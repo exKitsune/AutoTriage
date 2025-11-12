@@ -244,12 +244,10 @@ def main():
         
         # Calculate efficiency metrics
         if results:
-            avg_confidence = sum(r.confidence for r in results) / len(results)
             total_steps = sum(len(r.analysis_steps) for r in results)
             avg_steps = total_steps / len(results)
             
             print(f"\n📊 Analysis Performance:")
-            print(f"  Average confidence: {avg_confidence:.0%}")
             print(f"  Total investigation steps: {total_steps}")
             print(f"  Average steps per issue: {avg_steps:.1f}")
             print(f"  Efficiency: {'🔥 Excellent' if avg_steps < 3 else '✅ Good' if avg_steps < 5 else '⚠️  Could improve'}")

@@ -659,6 +659,20 @@ class AnalysisAgent:
             # The AI may provide a more accurate severity based on actual real-world impact
             final_severity = analysis.get("real_severity", self.problem.get("severity", "UNKNOWN"))
             
+            # Normalize severity to uppercase and standardize variations
+            severity_mapping = {
+                "CRITICAL": "CRITICAL",
+                "HIGH": "HIGH",
+                "MEDIUM": "MEDIUM",
+                "MODERATE": "MEDIUM",
+                "LOW": "LOW",
+                "MINOR": "LOW",
+                "TRIVIAL": "TRIVIAL",
+                "INFO": "INFO",
+                "INFORMATIONAL": "INFO"
+            }
+            final_severity = severity_mapping.get(str(final_severity).upper(), str(final_severity).upper())
+            
             # Ensure recommended_actions is a list
             rec_actions = analysis.get("recommended_actions", ["Manual review required"])
             if not isinstance(rec_actions, list):

@@ -226,10 +226,14 @@ class AnalysisAgent:
                     # Not a valid tool call format
                     print(f"  ❌ ERROR: LLM response not in tool format")
                     print(f"  Response: {response}")
-                    return self._create_fallback_response(
+                    fallback = self._create_fallback_response(
                         "LLM did not provide valid tool call format",
                         response
                     )
+                    # Include conversation history for debugging
+                    fallback["_conversation_history"] = conversation_history
+                    fallback["_final_message_count"] = len(messages)
+                    return fallback
                 
                 tool_name = tool_call["tool"]
                 parameters = tool_call.get("parameters", {})
@@ -393,13 +397,21 @@ class AnalysisAgent:
                 # Response is not JSON - treat as malformed
                 print(f"  ❌ ERROR: LLM response is not valid JSON")
                 print(f"  Response preview: {response}")
-                return self._create_fallback_response(
+                fallback = self._create_fallback_response(
                     "LLM response was not valid JSON",
                     response
                 )
+                # Include conversation history for debugging
+                fallback["_conversation_history"] = conversation_history
+                fallback["_final_message_count"] = len(messages)
+                return fallback
             except Exception as e:
                 print(f"  ❌ ERROR in agentic loop: {str(e)}")
-                return self._create_fallback_response(f"Loop error: {str(e)}")
+                fallback = self._create_fallback_response(f"Loop error: {str(e)}")
+                # Include conversation history for debugging
+                fallback["_conversation_history"] = conversation_history
+                fallback["_final_message_count"] = len(messages)
+                return fallback
         
         # Max iterations reached
         print(f"\n⚠️  MAX ITERATIONS REACHED ({max_iterations})")

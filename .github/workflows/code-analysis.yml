@@ -97,9 +97,9 @@ jobs:
             sleep 10
           done
 
-          # Get analysis results
-          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/issues/search?componentKeys=${PROJECT_KEY}&types=BUG,VULNERABILITY,CODE_SMELL" > sonar-issues.json
-          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/measures/component?component=${PROJECT_KEY}&metricKeys=bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density" > sonar-metrics.json
+          # Get analysis results - include SECURITY_HOTSPOT
+          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/issues/search?componentKeys=${PROJECT_KEY}&types=BUG,VULNERABILITY,CODE_SMELL,SECURITY_HOTSPOT" > sonar-issues.json
+          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/measures/component?component=${PROJECT_KEY}&metricKeys=bugs,vulnerabilities,code_smells,security_hotspots,coverage,duplicated_lines_density" > sonar-metrics.json
 
           # Create human-readable report
           echo "SonarQube Analysis Report for ${{ github.event.inputs.subfolder }}" > sonar-analysis-report.md
@@ -142,6 +142,7 @@ jobs:
             --enableRetired
             --enableExperimental
             --prettyPrint
+            --scan "${{ github.event.inputs.subfolder || '.' }}"
             --exclude "**/test/**" "**/tests/**" "**/_AutoTriageScripts/**"
             --log "reports/dependency-check.log"
 

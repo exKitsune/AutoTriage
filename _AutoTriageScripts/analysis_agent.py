@@ -150,7 +150,7 @@ class AnalysisAgent:
         """
         return {
             "is_applicable": False,  # Conservative: assume not applicable on error
-            "real_severity": "LOW",  # Conservative default for failed analysis
+            # NOTE: No 'real_severity' - analyze() will use original problem severity for failed analyses
             "explanation": f"Analysis failed: {error}. Manual review recommended.",
             "evidence": {"error": error, "raw_response": raw_response if raw_response else ""},
             "recommended_actions": ["Manual review required due to analysis failure"],
@@ -618,7 +618,7 @@ class AnalysisAgent:
         """
         try:
             # Analyze based on problem type
-            if self.problem["type"] == "vulnerability":
+            if self.problem["type"] in ["vulnerability", "security_hotspot"]:
                 analysis = self.analyze_vulnerability()
             elif self.problem["type"] in ["code-smell", "bug", "code_smell"]:
                 analysis = self.analyze_code_quality()
@@ -837,7 +837,7 @@ class AgentSystem:
                     report["summary"]["by_severity"].get(result.severity, 0) + 1
                 
                 # Split by type
-                is_vulnerability = result.problem_type in ['vulnerability', 'security-hotspot']
+                is_vulnerability = result.problem_type in ['vulnerability', 'security_hotspot']
                 if is_vulnerability:
                     report["summary"]["vulnerabilities_by_severity"][result.severity] = \
                         report["summary"]["vulnerabilities_by_severity"].get(result.severity, 0) + 1
@@ -856,7 +856,7 @@ class AgentSystem:
             # Count categories - separate vulnerabilities from code quality
             # Vulnerabilities: type='vulnerability' from dependency-check or cyclonedx
             # Code quality: type='code_smell', 'bug' from sonarqube
-            is_vulnerability = lambda r: r.problem_type in ['vulnerability', 'security-hotspot']
+            is_vulnerability = lambda r: r.problem_type in ['vulnerability', 'security_hotspot']
             is_code_quality = lambda r: r.problem_type in ['code_smell', 'bug', 'code-smell']
             
             # Separate failed analyses from actual determinations

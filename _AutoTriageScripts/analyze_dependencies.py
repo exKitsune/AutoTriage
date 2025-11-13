@@ -235,7 +235,7 @@ def main():
         successful_results = [r for r in results if not r.analysis_failed]
         
         # Split by vulnerability vs code quality
-        is_vulnerability = lambda r: r.problem_type in ['vulnerability', 'security-hotspot']
+        is_vulnerability = lambda r: r.problem_type in ['vulnerability', 'security_hotspot']
         is_code_quality = lambda r: r.problem_type in ['code_smell', 'bug', 'code-smell']
         
         # Vulnerabilities

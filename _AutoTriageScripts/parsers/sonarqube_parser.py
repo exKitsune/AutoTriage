@@ -97,13 +97,22 @@ class SonarQubeParser(BaseParser):
             file_path: Path to sonar-hotspots.json
         
         Returns:
-            List of Problem objects
+            List of Problem objects (empty if errors or insufficient permissions)
         """
         try:
             with open(file_path) as f:
                 data = json.load(f)
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in hotspots file: {str(e)}")
+        
+        # Check for API errors (e.g., insufficient privileges)
+        if "errors" in data:
+            errors = data.get("errors", [])
+            if errors:
+                error_msg = errors[0].get("msg", "Unknown error")
+                print(f"  ⚠️  Security hotspots unavailable: {error_msg}")
+                print(f"  💡 Tip: Update SonarQube token with 'Browse' permission for security hotspots")
+                return []
         
         hotspots = data.get("hotspots", [])
         if not isinstance(hotspots, list):

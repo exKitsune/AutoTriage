@@ -74,16 +74,17 @@ jobs:
             -Dsonar.scm.provider=git
 
       - name: Wait for Analysis and Generate Report
-        working-directory: ${{ github.event.inputs.subfolder || '.' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
           PROJECT_KEY="${{ github.event.repository.name }}"
 
-          # Get the task ID from the scanner's report file
+          # Get the task ID from the scanner's report file (created at repo root)
           if [ ! -f ".scannerwork/report-task.txt" ]; then
             echo "Error: report-task.txt not found. SonarQube scan may have failed."
+            echo "Looking in: $(pwd)/.scannerwork/"
+            ls -la .scannerwork/ 2>/dev/null || echo "Directory .scannerwork/ does not exist"
             exit 1
           fi
 

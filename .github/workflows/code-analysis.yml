@@ -171,8 +171,8 @@ jobs:
           echo "Generating SBOM for $SCAN_PATH using Syft..."
           echo "Syft will auto-detect: Python, JavaScript, Java, Go, Ruby, PHP, and more!"
 
-          # Exclude _AutoTriageScripts directory
-          syft dir:$SCAN_PATH -o cyclonedx-json --exclude '_AutoTriageScripts/**' > sbom.json
+          # Exclude _AutoTriageScripts directory (Syft requires ./ or **/ prefix)
+          syft dir:$SCAN_PATH -o cyclonedx-json --exclude '**/_AutoTriageScripts/**' > sbom.json
 
           # Show what was detected
           echo ""

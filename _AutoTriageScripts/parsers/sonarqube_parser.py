@@ -43,12 +43,13 @@ class SonarQubeParser(BaseParser):
     def parse(self, file_path: Path) -> List[Problem]:
         """
         Parse SonarQube issues JSON file.
+        Also checks for and parses sonar-hotspots.json if available.
         
         Args:
             file_path: Path to sonar-issues.json
         
         Returns:
-            List of Problem objects
+            List of Problem objects (issues + hotspots merged)
             
         Raises:
             FileNotFoundError: If file doesn't exist
@@ -57,6 +58,7 @@ class SonarQubeParser(BaseParser):
         if not self.validate_file(file_path):
             raise FileNotFoundError(f"SonarQube issues file not found: {file_path}")
         
+        # Parse regular issues
         try:
             with open(file_path) as f:
                 data = json.load(f)
@@ -75,7 +77,79 @@ class SonarQubeParser(BaseParser):
                 print(f"Warning: Skipping malformed SonarQube issue: {str(e)}")
                 continue
         
+        # Check for security hotspots file in the same directory
+        hotspots_file = file_path.parent / "sonar-hotspots.json"
+        if hotspots_file.exists():
+            try:
+                hotspots_problems = self._parse_hotspots_file(hotspots_file)
+                problems.extend(hotspots_problems)
+                print(f"  Parsed {len(hotspots_problems)} security hotspots")
+            except Exception as e:
+                print(f"Warning: Failed to parse security hotspots: {str(e)}")
+        
         return problems
+    
+    def _parse_hotspots_file(self, file_path: Path) -> List[Problem]:
+        """
+        Parse SonarQube security hotspots JSON file.
+        
+        Args:
+            file_path: Path to sonar-hotspots.json
+        
+        Returns:
+            List of Problem objects
+        """
+        try:
+            with open(file_path) as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in hotspots file: {str(e)}")
+        
+        hotspots = data.get("hotspots", [])
+        if not isinstance(hotspots, list):
+            return []
+        
+        problems = []
+        for hotspot in hotspots:
+            try:
+                problems.append(self._parse_hotspot(hotspot))
+            except Exception as e:
+                print(f"Warning: Skipping malformed security hotspot: {str(e)}")
+                continue
+        
+        return problems
+    
+    def _parse_hotspot(self, hotspot: Dict[str, Any]) -> Problem:
+        """
+        Parse a single SonarQube security hotspot into a Problem.
+        
+        Args:
+            hotspot: Hotspot dict from SonarQube hotspots API
+        
+        Returns:
+            Problem object
+        """
+        # Hotspots use vulnerabilityProbability instead of severity
+        # Map: HIGH -> CRITICAL, MEDIUM -> HIGH, LOW -> MEDIUM
+        vuln_prob = hotspot.get("vulnerabilityProbability", "MEDIUM").upper()
+        severity_map = {
+            "HIGH": "CRITICAL",
+            "MEDIUM": "HIGH",
+            "LOW": "MEDIUM"
+        }
+        severity = severity_map.get(vuln_prob, "MEDIUM")
+        
+        return Problem(
+            id=hotspot["key"],
+            source="sonarqube",
+            title=hotspot.get("message", "Security Hotspot"),
+            description=hotspot.get("message", ""),
+            severity=severity,
+            component=hotspot.get("component", "unknown"),
+            type="security_hotspot",
+            line=hotspot.get("line"),
+            raw_data=hotspot
+        )
     
     def _parse_issue(self, issue: Dict[str, Any]) -> Problem:
         """

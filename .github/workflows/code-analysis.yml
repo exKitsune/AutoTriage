@@ -97,8 +97,9 @@ jobs:
             sleep 10
           done
 
-          # Get analysis results - include SECURITY_HOTSPOT
-          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/issues/search?componentKeys=${PROJECT_KEY}&types=BUG,VULNERABILITY,CODE_SMELL,SECURITY_HOTSPOT" > sonar-issues.json
+          # Get analysis results - issues and security hotspots use different APIs
+          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/issues/search?componentKeys=${PROJECT_KEY}&types=BUG,VULNERABILITY,CODE_SMELL" > sonar-issues.json
+          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/hotspots/search?projectKey=${PROJECT_KEY}" > sonar-hotspots.json
           curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/measures/component?component=${PROJECT_KEY}&metricKeys=bugs,vulnerabilities,code_smells,security_hotspots,coverage,duplicated_lines_density" > sonar-metrics.json
 
           # Create human-readable report
@@ -117,6 +118,7 @@ jobs:
           name: sonarqube-analysis
           path: |
             sonar-issues.json
+            sonar-hotspots.json
             sonar-metrics.json
             sonar-analysis-report.md
 

@@ -798,7 +798,9 @@ class AgentSystem:
             "summary": {
                 "total_problems": len(self.results),
                 "applicable_problems": sum(1 for r in self.results if r.is_applicable),
-                "by_severity": {}
+                "by_severity": {},
+                "vulnerabilities_by_severity": {},
+                "code_quality_by_severity": {}
             },
             "analysis_metadata": {
                 "analysis_date": datetime.now().isoformat(),
@@ -827,11 +829,21 @@ class AgentSystem:
             ]
         }
         
-        # Count by severity
+        # Count by severity (overall and split by type)
         for result in self.results:
             if result.is_applicable:
+                # Overall count
                 report["summary"]["by_severity"][result.severity] = \
                     report["summary"]["by_severity"].get(result.severity, 0) + 1
+                
+                # Split by type
+                is_vulnerability = result.problem_type in ['vulnerability', 'security-hotspot']
+                if is_vulnerability:
+                    report["summary"]["vulnerabilities_by_severity"][result.severity] = \
+                        report["summary"]["vulnerabilities_by_severity"].get(result.severity, 0) + 1
+                else:
+                    report["summary"]["code_quality_by_severity"][result.severity] = \
+                        report["summary"]["code_quality_by_severity"].get(result.severity, 0) + 1
         
         # Write detailed report
         report_file = output_dir / "analysis_report.json"
@@ -870,9 +882,24 @@ class AgentSystem:
             
             # Analysis Details at the top
             f.write("## 📊 Analysis Details\n\n")
-            f.write(f"- **Problems by Severity:**\n")
-            for severity, count in report["summary"]["by_severity"].items():
-                f.write(f"  - {severity}: {count}\n")
+            
+            # Split severity by type
+            vuln_severities = report["summary"]["vulnerabilities_by_severity"]
+            quality_severities = report["summary"]["code_quality_by_severity"]
+            
+            if vuln_severities:
+                f.write(f"- **Vulnerabilities by Severity:**\n")
+                for severity, count in vuln_severities.items():
+                    f.write(f"  - {severity}: {count}\n")
+            
+            if quality_severities:
+                f.write(f"- **Code Quality Issues by Severity:**\n")
+                for severity, count in quality_severities.items():
+                    f.write(f"  - {severity}: {count}\n")
+            
+            if not vuln_severities and not quality_severities:
+                f.write(f"- **All Issues:** No applicable issues found\n")
+            
             f.write(f"- **Total Investigation Steps:** {sum(len(r.analysis_steps) for r in self.results)}\n\n")
             f.write("---\n\n")
             

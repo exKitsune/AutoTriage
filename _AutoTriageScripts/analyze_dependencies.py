@@ -230,21 +230,42 @@ def main():
         results = agent_system.analyze_problems(problems_as_dicts, output_dir=output_dir)
         agent_system.generate_report(output_dir)
         
-        # Count issues by priority - separate failed analyses
+        # Count issues by priority - separate failed analyses and by type
         failed_count = sum(1 for r in results if r.analysis_failed)
         successful_results = [r for r in results if not r.analysis_failed]
         
-        important_count = sum(1 for r in successful_results if r.is_applicable and r.severity in ["CRITICAL", "HIGH", "MEDIUM"])
-        low_priority_count = sum(1 for r in successful_results if r.is_applicable and r.severity in ["LOW", "TRIVIAL"])
+        # Split by vulnerability vs code quality
+        is_vulnerability = lambda r: r.problem_type in ['vulnerability', 'security-hotspot']
+        is_code_quality = lambda r: r.problem_type in ['code_smell', 'bug', 'code-smell']
+        
+        # Vulnerabilities
+        important_vulns = sum(1 for r in successful_results if r.is_applicable and is_vulnerability(r) and r.severity in ["CRITICAL", "HIGH", "MEDIUM"])
+        low_vulns = sum(1 for r in successful_results if r.is_applicable and is_vulnerability(r) and r.severity in ["LOW", "TRIVIAL"])
+        
+        # Code quality
+        important_quality = sum(1 for r in successful_results if r.is_applicable and is_code_quality(r) and r.severity in ["CRITICAL", "HIGH", "MEDIUM"])
+        low_quality = sum(1 for r in successful_results if r.is_applicable and is_code_quality(r) and r.severity in ["LOW", "TRIVIAL"])
+        
         dismissed_count = sum(1 for r in successful_results if not r.is_applicable)
         
         print(f"\n{'='*80}")
         print("✅ ANALYSIS COMPLETE")
         print(f"{'='*80}")
         print(f"Total issues analyzed: {len(problems)}")
-        print(f"🚨 Issues requiring attention: {important_count} (CRITICAL/HIGH/MEDIUM)")
-        if low_priority_count > 0:
-            print(f"ℹ️  Low priority issues: {low_priority_count}")
+        
+        # Security vulnerabilities
+        if important_vulns > 0:
+            print(f"🚨 Security issues requiring attention: {important_vulns} (CRITICAL/HIGH/MEDIUM)")
+        if low_vulns > 0:
+            print(f"ℹ️  Low priority security issues: {low_vulns}")
+        if important_vulns == 0 and low_vulns == 0:
+            print(f"✅ No security vulnerabilities found")
+        
+        # Code quality issues
+        if important_quality > 0 or low_quality > 0:
+            total_quality = important_quality + low_quality
+            print(f"🔧 Code quality issues: {total_quality} (MEDIUM: {important_quality}, LOW: {low_quality})")
+        
         print(f"✅ Issues dismissed: {dismissed_count}")
         if failed_count > 0:
             print(f"⚠️  Analysis failures (manual review required): {failed_count}")

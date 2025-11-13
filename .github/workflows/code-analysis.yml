@@ -74,39 +74,72 @@ jobs:
             -Dsonar.scm.provider=git
 
       - name: Wait for Analysis and Generate Report
+        working-directory: ${{ github.event.inputs.subfolder || '.' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
-          # Wait for analysis to complete (check every 10 seconds, timeout after 5 minutes)
           PROJECT_KEY="${{ github.event.repository.name }}"
-          for i in {1..30}; do
-            status=$(curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${PROJECT_KEY}" | jq -r '.projectStatus.status')
+
+          # Get the task ID from the scanner's report file
+          if [ ! -f ".scannerwork/report-task.txt" ]; then
+            echo "Error: report-task.txt not found. SonarQube scan may have failed."
+            exit 1
+          fi
+
+          TASK_ID=$(grep "ceTaskId=" .scannerwork/report-task.txt | cut -d'=' -f2)
+          echo "SonarQube Task ID: $TASK_ID"
+
+          if [ -z "$TASK_ID" ]; then
+            echo "Error: Could not extract task ID from report-task.txt"
+            exit 1
+          fi
+
+          # Poll the Compute Engine task status until complete
+          echo "Waiting for SonarQube background task to complete..."
+          MAX_ATTEMPTS=60
+          SLEEP_SECONDS=5
+
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            TASK_STATUS=$(curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/ce/task?id=${TASK_ID}" | jq -r '.task.status')
             
-            if [ "$status" != "null" ]; then
-              echo "Analysis completed with status: $status"
+            echo "Attempt $i/$MAX_ATTEMPTS - Task status: $TASK_STATUS"
+            
+            if [ "$TASK_STATUS" == "SUCCESS" ]; then
+              echo "Analysis completed successfully!"
               break
-            fi
-            
-            if [ $i -eq 30 ]; then
-              echo "Timeout waiting for analysis to complete"
+            elif [ "$TASK_STATUS" == "FAILED" ] || [ "$TASK_STATUS" == "CANCELED" ]; then
+              echo "Error: Analysis task failed with status: $TASK_STATUS"
+              curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/ce/task?id=${TASK_ID}" | jq '.task'
               exit 1
+            elif [ "$TASK_STATUS" == "PENDING" ] || [ "$TASK_STATUS" == "IN_PROGRESS" ]; then
+              if [ $i -eq $MAX_ATTEMPTS ]; then
+                echo "Timeout: Analysis did not complete within $(($MAX_ATTEMPTS * $SLEEP_SECONDS)) seconds"
+                exit 1
+              fi
+              sleep $SLEEP_SECONDS
+            else
+              echo "Warning: Unknown task status: $TASK_STATUS"
+              sleep $SLEEP_SECONDS
             fi
-            
-            echo "Waiting for analysis to complete... (attempt $i/30)"
-            sleep 10
           done
+
+          # Now that analysis is complete, fetch the results
+          echo "Fetching analysis results..."
 
           # Get analysis results - issues and security hotspots use different APIs
           curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/issues/search?componentKeys=${PROJECT_KEY}&types=BUG,VULNERABILITY,CODE_SMELL" > sonar-issues.json
           curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/hotspots/search?projectKey=${PROJECT_KEY}" > sonar-hotspots.json
           curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/measures/component?component=${PROJECT_KEY}&metricKeys=bugs,vulnerabilities,code_smells,security_hotspots,coverage,duplicated_lines_density" > sonar-metrics.json
 
+          # Get Quality Gate status
+          QG_STATUS=$(curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${PROJECT_KEY}" | jq -r '.projectStatus.status')
+
           # Create human-readable report
           echo "SonarQube Analysis Report for ${{ github.event.inputs.subfolder }}" > sonar-analysis-report.md
           echo "Generated on $(date)" >> sonar-analysis-report.md
           echo "---" >> sonar-analysis-report.md
-          echo "## Quality Gate Status: $status" >> sonar-analysis-report.md
+          echo "## Quality Gate Status: $QG_STATUS" >> sonar-analysis-report.md
           echo "## Issues" >> sonar-analysis-report.md
           jq -r '.issues[] | "* " + .severity + ": " + .message + " (" + .component + ":" + (.line|tostring) + ")"' sonar-issues.json >> sonar-analysis-report.md || echo "No issues found" >> sonar-analysis-report.md
           echo "## Metrics" >> sonar-analysis-report.md

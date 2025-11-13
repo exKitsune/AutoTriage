@@ -442,10 +442,32 @@ class AnalysisAgent:
                     "tool_result": tool_result
                 })
                 
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 # Response is not JSON - treat as malformed
                 print(f"  ❌ ERROR: LLM response is not valid JSON")
-                print(f"  Response preview: {response}")
+                print(f"  JSON Error: {str(e)}")
+                print(f"  Full Response (length: {len(response)}):")
+                print(f"  {'-'*60}")
+                # Show full response (truncate only if extremely long)
+                if len(response) > 5000:
+                    print(f"  {response[:2500]}")
+                    print(f"  ... [{len(response) - 5000} characters omitted] ...")
+                    print(f"  {response[-2500:]}")
+                else:
+                    print(f"  {response}")
+                print(f"  {'-'*60}")
+                
+                # Add malformed response to conversation history for debugging
+                conversation_history.append({
+                    "iteration": iteration + 1,
+                    "ai_response": response,
+                    "error": "JSON parsing failed",
+                    "json_error": str(e),
+                    "tool_called": None,
+                    "tool_parameters": None,
+                    "tool_result": {"error": "LLM response was not valid JSON"}
+                })
+                
                 fallback = self._create_fallback_response(
                     "LLM response was not valid JSON",
                     response
@@ -456,6 +478,18 @@ class AnalysisAgent:
                 return fallback
             except Exception as e:
                 print(f"  ❌ ERROR in agentic loop: {str(e)}")
+                
+                # Add error to conversation history for debugging
+                conversation_history.append({
+                    "iteration": iteration + 1,
+                    "ai_response": response if 'response' in locals() else None,
+                    "error": f"Loop error: {str(e)}",
+                    "error_type": type(e).__name__,
+                    "tool_called": None,
+                    "tool_parameters": None,
+                    "tool_result": {"error": str(e)}
+                })
+                
                 fallback = self._create_fallback_response(f"Loop error: {str(e)}")
                 # Include conversation history for debugging
                 fallback["_conversation_history"] = conversation_history
@@ -474,6 +508,7 @@ class AnalysisAgent:
         })
         
         # Try to force a conclusion by asking directly
+        response = None
         try:
             force_prompt = "You have reached the maximum number of tool calls. Based on the information you've gathered, provide your final analysis using the provide_analysis tool. Respond with ONLY the JSON tool call, no other text."
             messages.append({"role": "user", "content": force_prompt})
@@ -510,8 +545,24 @@ class AnalysisAgent:
                 result["_final_message_count"] = len(messages)
                 result["_analysis_error"] = False  # Completed successfully (just hit max iterations)
                 return result
-        except:
-            pass
+        except Exception as e:
+            print(f"  ⚠️  Failed to force conclusion: {str(e)}")
+            if response:
+                print(f"  Response (length: {len(response)}):")
+                print(f"  {response[:500]}..." if len(response) > 500 else f"  {response}")
+            else:
+                print(f"  No response received from LLM")
+            
+            # Add failure to conversation history for debugging
+            conversation_history.append({
+                "iteration": max_iterations + 1,
+                "ai_response": response if response else None,
+                "error": f"Failed to force conclusion: {str(e)}",
+                "error_type": type(e).__name__,
+                "tool_called": "provide_analysis (forced)",
+                "tool_parameters": None,
+                "tool_result": {"error": str(e)}
+            })
         
         fallback = self._create_fallback_response(
             f"Max iterations ({max_iterations}) reached without conclusion"

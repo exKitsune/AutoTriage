@@ -99,7 +99,7 @@ jobs:
           # Poll the Compute Engine task status until complete
           echo "Waiting for SonarQube background task to complete..."
           MAX_ATTEMPTS=60
-          SLEEP_SECONDS=5
+          SLEEP_SECONDS=10
 
           for i in $(seq 1 $MAX_ATTEMPTS); do
             TASK_STATUS=$(curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/ce/task?id=${TASK_ID}" | jq -r '.task.status')

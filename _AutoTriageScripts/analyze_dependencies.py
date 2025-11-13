@@ -19,7 +19,9 @@ def parse_arguments() -> argparse.Namespace:
     
     parser.add_argument(
         "subfolder",
-        help="Subfolder being analyzed (e.g. container_security)"
+        nargs='?',
+        default=".",
+        help="Subfolder to analyze (default: current directory/repo root)"
     )
     
     parser.add_argument(
@@ -57,8 +59,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=5,
-        help="Maximum number of tool calls the AI can make per issue (default: 5)"
+        default=15,
+        help="Maximum number of tool calls the AI can make per issue (default: 15)"
     )
 
     args = parser.parse_args()

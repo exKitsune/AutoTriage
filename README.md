@@ -1,580 +1,691 @@
 # AutoTriage
 
-An AI-powered automated security and code quality triage system that intelligently analyzes issues from various scanning tools (SonarQube, OWASP Dependency-Check, CycloneDX SBOMs) to determine which issues are truly applicable to your project.
+AI-powered security and code quality triage system that automatically investigates which issues actually matter in your codebase.
 
-## Overview
+**Copy this into your repository** to get automated AI-powered triage of security vulnerabilities and code quality issues.
 
-AutoTriage uses an agentic AI system to analyze security vulnerabilities and code quality issues in context. Instead of simply flagging every potential issue, it uses an LLM with tool-calling capabilities to intelligently investigate your codebase and determine:
+> 🔧 **Fully Customizable**: Extend with your own investigation tools, security tool parsers, or LLM providers. The AI automatically discovers and uses any tools you add.
 
-- **Is this vulnerability actually exploitable?** Does the code use the vulnerable functions?
-- **Is this dependency actually used?** Is it imported anywhere in the codebase?
-- **Is this code smell a real problem?** Does it warrant attention in this specific context?
+## Table of Contents
+
+- [What It Does](#what-it-does)
+- [How It Works](#how-it-works)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Known Issues Management](#known-issues-management)
+- [Output](#output)
+- [Extending AutoTriage](#extending-autotriage)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## What It Does
+
+AutoTriage analyzes security vulnerabilities and code quality issues **in context** using an AI agent that investigates your codebase:
+
+**Instead of:**
+
+- "PyYAML has CVE-2020-14343 (CRITICAL)" → ❌ Manual investigation required
+
+**You get:**
+
+- "PyYAML vulnerability not applicable - not imported in production code. Only in test dependencies. Evidence: `grep -r 'import yaml' src/` returned 0 matches." → ✅ Auto-triaged
+
+**Supports:**
+
+- SonarQube (code quality, security hotspots)
+- OWASP Dependency-Check (CVE vulnerabilities)
+- CycloneDX SBOMs (software bill of materials)
+
+**Key Features:**
+
+- **Agentic AI**: LLM autonomously uses tools to investigate issues (reads files, searches code, checks imports)
+- **Contextual Analysis**: Determines if vulnerabilities are actually exploitable in your code
+- **Human Learning**: Document your decisions once, AI references them in future analyses
+- **Fully Extensible**: Add custom investigation tools, security tool parsers, or LLM providers - AI automatically discovers them
+
+---
 
 ## How It Works
 
-### Architecture
-
-1. **Problem Collection**: Parses outputs from security tools (SonarQube, Dependency-Check, SBOM)
-2. **Agentic Analysis**: For each issue, an AI agent with tool access investigates:
-   - Reads source code files
-   - Searches for patterns (imports, function usage)
-   - Checks SBOM for package information
-   - Analyzes file structures
-3. **Contextualized Results**: Provides actionable reports with scores and evidence
-
 ### The Agentic Loop
 
-The AI agent uses an iterative tool-calling approach:
+For each issue, the AI agent iteratively investigates using available tools:
 
 ```
-1. Receive problem (e.g., "PyYAML 5.3.1 has CVE-2020-1234")
-2. LLM decides what to investigate first
-   → Calls: search_sbom("PyYAML")
-3. Receives result: { found: true, version: "5.3.1" }
-4. LLM decides next step
-   → Calls: check_import_usage("yaml")
-5. Receives result: { is_imported: false }
-6. LLM concludes
-   → Calls: provide_analysis(is_applicable=false, ...)
+1. Issue: "CVE-2020-14343 in PyYAML 5.3.1 (CRITICAL)"
+
+2. AI searches known issues database
+   → Tool: search_known_issues(["PyYAML", "CVE-2020-14343"])
+   → Result: Found human review from 2025-11-13
+
+3. AI reads full human review
+   → Tool: check_known_issue("CVE-2020-14343")
+   → Result: "Not applicable - only test dependency"
+
+4. AI verifies human's claim
+   → Tool: check_import_usage("PyYAML")
+   → Result: 0 imports found in src/
+
+5. AI concludes
+   → Tool: provide_analysis(
+       is_applicable=false,
+       severity="trivial",
+       explanation="Per security team review: PyYAML only in tests..."
+     )
 ```
 
-This continues for up to 5 iterations per issue.
+### Investigation Tools Available to AI
 
-### Supported Analysis Tools
+The AI has access to 10 investigation tools (you can add more):
 
-AutoTriage can parse and analyze results from:
+| Tool                  | Purpose                                             |
+| --------------------- | --------------------------------------------------- |
+| `search_known_issues` | Search human-reviewed issues by keywords            |
+| `check_known_issue`   | Get full details of a specific human review         |
+| `check_import_usage`  | Check if Python packages are imported (Python only) |
+| `search_code`         | Grep-based regex search across codebase             |
+| `read_file`           | Read complete file contents                         |
+| `read_file_lines`     | Read specific line ranges (for large files)         |
+| `list_directory`      | List directory contents                             |
+| `find_files`          | Find files matching patterns                        |
+| `search_sbom`         | Search SBOM for packages (if SBOM exists)           |
+| `provide_analysis`    | Submit final conclusion                             |
 
-- **SonarQube**: Code quality issues, bugs, security hotspots
-- **OWASP Dependency-Check**: CVE vulnerabilities in dependencies
-- **CycloneDX SBOM**: Software Bill of Materials with optional vulnerability data
+**Dynamic filtering**: Tools automatically hidden if requirements not met (e.g., no SBOM → `search_sbom` hidden)
 
-### AI Investigation Tools
+**Want to add your own tools?** See [Extending AutoTriage](#extending-autotriage) - the AI automatically discovers new tools.
 
-The AI agent has access to these tools during analysis:
+---
 
-- **read_file**: Read complete file contents
-- **read_file_lines**: Read specific line ranges (for large files)
-- **search_code**: Grep-based pattern search with regex support
-- **find_files**: Find files matching patterns
-- **list_directory**: List directory contents
-- **search_sbom**: Search Software Bill of Materials for packages (⚠️ only available if SBOM exists)
-- **check_import_usage**: Check if Python packages are imported
-- **provide_analysis**: Submit final analysis conclusion
+## Installation
 
-**Dynamic Tool Filtering**: Tools are automatically filtered based on availability. For example, if no SBOM file is present, the `search_sbom` tool is hidden from the AI to prevent confusion. This ensures the AI only sees tools it can actually use.
-
-## Setup
-
-### Prerequisites
-
-- Python 3.8+
-- GitHub Actions environment (or Linux for local testing)
-- OpenRouter API key (for AI model access)
-- (Optional) Syft or Trivy for SBOM generation - see [SBOM Guide](_AutoTriageScripts/SBOM_GUIDE.md)
-
-### GitHub Secrets
-
-Configure these secrets in your repository:
-
-- `OPENROUTER_API_KEY`: API key from [OpenRouter](https://openrouter.ai)
-- `SONAR_HOST_URL`: SonarQube server URL (if using SonarQube)
-- `SONAR_TOKEN`: SonarQube authentication token
-
-### Local Setup
+### Step 1: Copy AutoTriage into Your Repository
 
 ```bash
-# Install dependencies
-pip install -r _AutoTriageScripts/requirements.txt
-
-# Set environment variable
-export OPENROUTER_API_KEY="your-api-key-here"
+# In your repository root
+git clone https://github.com/your-org/AutoTriage.git temp-autotriage
+cp -r temp-autotriage/_AutoTriageScripts .
+cp temp-autotriage/.github/workflows/code-analysis.yml .github/workflows/
+rm -rf temp-autotriage
 ```
 
-## Usage
+Your repository structure:
 
-### Via GitHub Workflow
+```
+your-repo/
+├── _AutoTriageScripts/      # AutoTriage system (you just copied this)
+├── .github/workflows/
+│   └── code-analysis.yml    # Workflow file (you just copied this)
+├── src/                     # Your actual code
+├── package.json             # Your project files
+└── ...
+```
 
-The workflow runs automatically or can be triggered manually:
+### Step 2: Configure GitHub Secrets
+
+Add these secrets in **Settings → Secrets and variables → Actions**:
+
+| Secret               | Required | Purpose          | Get it from                                                  |
+| -------------------- | -------- | ---------------- | ------------------------------------------------------------ |
+| `OPENROUTER_API_KEY` | ✅ Yes   | AI model access  | [openrouter.ai](https://openrouter.ai) (free tier available) |
+| `SONAR_HOST_URL`     | Optional | SonarQube server | Your SonarQube instance                                      |
+| `SONAR_TOKEN`        | Optional | SonarQube auth   | SonarQube user settings                                      |
+
+**Want to add your own secrets?** Edit `.github/workflows/code-analysis.yml` and add them to the `env:` section of the analysis step.
+
+### Step 3: Customize Workflow (Optional)
+
+Edit `.github/workflows/code-analysis.yml` to:
+
+- **Add your security tools**: Integrate Snyk, Trivy, Bandit, etc. by adding steps that generate reports
+- **Add more secrets**: Include any API keys or tokens your custom tools need
+- **Adjust timing**: Change when analysis runs (on push, PR, schedule)
+- **Modify tool flags**: Enable/disable `--sonarqube`, `--dependency-check`, `--sbom`
+
+Example customization:
+
+```yaml
+# Add before "Run Analysis Aggregation" step
+- name: Run Snyk Scan
+  run: snyk test --json > analysis-inputs/snyk/snyk-report.json
+  env:
+    SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+```
+
+### Step 4: Run Analysis
+
+**Automatic**: Workflow runs on every push/PR (configure triggers in `code-analysis.yml`)
+
+**Manual**:
 
 1. Go to **Actions** → **Code Analysis**
 2. Click **Run workflow**
-3. Configure the workflow:
-   - **Subfolder**: Select the test subfolder (e.g., `container_security`, `old_deps`)
-   - **Max Iterations** (optional): Maximum tool calls AI can make per issue (default: 5)
+3. Wait for completion
+4. Download artifacts:
+   - `analysis_report.json` - Detailed JSON
+   - `analysis_summary.md` - Human-readable summary
+   - `conversation_logs/` - AI investigation logs
 
-Results are uploaded as workflow artifacts:
-
-- `analysis_report.json`: Detailed JSON report with all findings
-- `analysis_summary.md`: Human-readable summary with actionable recommendations
-- `problems.json`: Debug file with all detected issues (before analysis)
-- `conversation_logs/`: Detailed AI conversation logs for each issue (useful for debugging)
-
-### Manual Execution
-
-```bash
-# Analyze a project
-python _AutoTriageScripts/analyze_dependencies.py <subfolder> --sonarqube --dependency-check
-
-# Example with container_security test project
-python _AutoTriageScripts/analyze_dependencies.py container_security --dependency-check
-
-# Include SBOM vulnerability analysis
-python _AutoTriageScripts/analyze_dependencies.py container_security --dependency-check --sbom
-
-# Customize max iterations (allow more thorough investigation)
-python _AutoTriageScripts/analyze_dependencies.py container_security --dependency-check --max-iterations 8
-
-# Quick analysis (fewer iterations)
-python _AutoTriageScripts/analyze_dependencies.py old_deps --sonarqube --max-iterations 3
-```
-
-**Available Options:**
-
-- `--sonarqube`: Process SonarQube results
-- `--dependency-check`: Process OWASP Dependency-Check results
-- `--sbom`: Process CycloneDX SBOM for vulnerabilities
-- `--input-dir`: Custom input directory (default: `analysis-inputs`)
-- `--output-dir`: Custom output directory (default: `analysis-outputs`)
-- `--max-iterations`: Max tool calls per issue (default: `5`)
-
-## Project Structure
-
-```
-AutoTriage/
-├── _AutoTriageScripts/           # Main analysis system
-│   ├── analyze_dependencies.py   # Entry point script
-│   ├── analysis_agent.py         # Core agent logic and agentic loop
-│   ├── tool_executor.py          # Lightweight tool execution dispatcher
-│   ├── llm_client.py             # LLM provider factory
-│   ├── prompt_formatter.py       # Formats tool docs for LLM
-│   ├── tool_availability.py      # Dynamic tool filtering
-│   │
-│   ├── llm_providers/            # 🔌 Pluggable LLM providers
-│   │   ├── __init__.py
-│   │   ├── base_provider.py     # Abstract base class
-│   │   └── openrouter_provider.py  # OpenRouter implementation
-│   │
-│   ├── parsers/                  # 🔌 Pluggable tool parsers
-│   │   ├── __init__.py
-│   │   ├── base_parser.py       # Abstract base class + Problem dataclass
-│   │   ├── sonarqube_parser.py  # SonarQube parser
-│   │   ├── dependency_check_parser.py  # OWASP Dependency-Check parser
-│   │   └── cyclonedx_parser.py  # CycloneDX SBOM parser
-│   │
-│   ├── tools/                    # 🔌 Modular investigation tools
-│   │   ├── __init__.py           # Auto-discovery and tool registry
-│   │   ├── base_tool.py          # Abstract base class
-│   │   ├── read_file.py          # Read complete file contents
-│   │   ├── read_file_lines.py    # Read specific line ranges
-│   │   ├── search_code.py        # Grep-based pattern search
-│   │   ├── list_directory.py     # List directory contents
-│   │   ├── find_files.py         # Find files by pattern
-│   │   ├── search_sbom.py        # Search SBOM for packages
-│   │   ├── check_import_usage.py # Check Python import usage
-│   │   └── provide_analysis.py   # Final analysis submission
-│   │
-│   ├── config/
-│   │   ├── ai_config.json        # AI model configuration
-│   │   └── prompts.json          # LLM prompt templates
-│   │
-│   └── tests/                    # Test suite
-│       ├── test_parser_compatibility.py  # Verifies parsers match old behavior
-│       ├── test_cyclonedx_parser.py     # CycloneDX-specific tests
-│       ├── test_modular_tools.py        # Tests for modular tool system
-│       └── test_tool_filtering.py       # Tests for dynamic tool availability
-│
-├── _example_output/              # Example outputs from tools
-│   ├── CycloneDX/               # SBOM examples
-│   ├── Dependency-Check/        # Vulnerability scan examples
-│   └── SonarQube/               # Code quality scan examples
-│
-├── container_security/           # Test project #1: Vulnerable containers
-│   ├── app/
-│   │   └── app.py
-│   ├── requirements.txt
-│   └── vulnerable/
-│       └── Dockerfile
-│
-├── old_deps/                     # Test project #2: Outdated dependencies
-│   ├── app.py
-│   └── requirements.txt
-│
-└── .github/
-    └── workflows/
-        └── code-analysis.yml     # GitHub Actions workflow
-```
-
-### Parser Path Verification ✅
-
-The parsers expect files at these locations (verified to match GitHub workflow):
-
-| Tool             | Workflow Output                                                 | Parser Expects                                            | Status   |
-| ---------------- | --------------------------------------------------------------- | --------------------------------------------------------- | -------- |
-| SonarQube        | `analysis-inputs/sonarqube/sonar-issues.json`                   | `input_dir/sonarqube/sonar-issues.json`                   | ✅ Match |
-| Dependency-Check | `analysis-inputs/dependency-check/dependency-check-report.json` | `input_dir/dependency-check/dependency-check-report.json` | ✅ Match |
-| CycloneDX SBOM   | `analysis-inputs/sbom/sbom.json`                                | `input_dir/sbom/sbom.json`                                | ✅ Match |
-
-The workflow downloads artifacts to `analysis-inputs/` directory, and parsers read from the same structure by default.
-
-**SBOM Format**: Currently enforced to be **CycloneDX** format. The system gracefully handles missing SBOMs by:
-
-- Filtering out the `search_sbom` tool from available tools
-- Continuing analysis with other investigation tools
-- This prevents the AI from attempting to use unavailable tools
-
-## Modular Architecture 🔌
-
-AutoTriage is built with extensibility in mind. The system uses a pluggable architecture that allows you to:
-
-### Custom LLM Providers
-
-Easily swap or add LLM providers without touching core code.
-
-**Included**: OpenRouter (supports Claude, GPT-4, Gemini, etc.)
-
-**Add Your Own**: Extend `BaseLLMProvider` to add support for:
-
-- Direct OpenAI API
-- Anthropic Claude API
-- Azure OpenAI
-- Google Vertex AI
-- Local models (Ollama, LM Studio, etc.)
-- Any OpenAI-compatible endpoint
-
-Check `_AutoTriageScripts/llm_providers/` for base class and examples.
-
-### Custom Security Tool Parsers
-
-Add support for new security scanning tools by creating parsers.
-
-**Included**:
-
-- SonarQube (code quality & security)
-- OWASP Dependency-Check (CVE vulnerabilities)
-- CycloneDX (SBOM with optional vulnerabilities)
-
-**Add Your Own**: Extend `BaseParser` to add support for:
-
-- Snyk
-- Trivy
-- Bandit
-- ESLint with security plugins
-- Custom internal tools
-- SARIF format tools
-
-Creating a new parser is easy - just extend `BaseParser` and implement 3 methods!
-
-### Custom Investigation Tools
-
-The AI agent uses investigation tools to analyze your codebase. All tools are now **modular** - one file per tool, with automatic discovery.
-
-**Included Tools** (8 total):
-
-- `read_file` - Read complete file contents
-- `read_file_lines` - Read specific line ranges (for large files)
-- `search_code` - Grep-based pattern search with regex
-- `list_directory` - List directory contents
-- `find_files` - Find files matching glob patterns
-- `search_sbom` - Search SBOM for package info (dynamic availability)
-- `check_import_usage` - Check if Python packages are imported
-- `provide_analysis` - Submit final analysis conclusion
-
-**Add Your Own**: Extend `BaseTool` to add custom investigation capabilities:
-
-- Git history analysis
-- Database schema checks
-- API endpoint discovery
-- Dependency tree traversal
-- Custom static analysis
-- Integration with internal tools
-
-Creating a new tool is simple - define metadata and implement one `execute` method!
-
-### Example: Adding a New Parser
-
-```python
-# _AutoTriageScripts/parsers/snyk_parser.py
-from .base_parser import BaseParser, Problem
-
-class SnykParser(BaseParser):
-    def parse(self, file_path: Path) -> List[Problem]:
-        # Parse Snyk JSON output
-        # Return list of Problem objects
-        pass
-```
-
-### Example: Adding a New Investigation Tool
-
-```python
-# _AutoTriageScripts/tools/git_blame.py
-from .base_tool import BaseTool
-
-class GitBlameTool(BaseTool):
-    name = "git_blame"
-    description = "Get git blame for a file to see who last modified it"
-    parameters = {
-        "file_path": {"type": "string", "required": True}
-    }
-    requirements = []  # Or specify git executable requirement
-
-    def execute(self, params, workspace_root, input_dir):
-        # Run git blame and return results
-        pass
-```
-
-No changes needed to core analysis logic! The tool is automatically discovered and made available to the AI.
+---
 
 ## Configuration
 
-### AI Model Settings (`_AutoTriageScripts/config/ai_config.json`)
+### AI Model (`_AutoTriageScripts/config/ai_config.json`)
 
 ```json
 {
-  "api_base_url": "https://openrouter.ai/api/v1",
-  "model": "anthropic/claude-3.5-sonnet",
+  "ai_providers": {
+    "openrouter": {
+      "models": {
+        "default": "qwen/qwen3-30b-a3b:free",
+        "backup": "deepseek/deepseek-chat-v3.1:free"
+      }
+    }
+  },
   "analysis": {
     "max_retries": 3,
+    "retry_delay_seconds": 5,
     "timeout_seconds": 300
   }
 }
 ```
 
-### Max Iterations
+**Recommended models:**
 
-Controls how many tools the AI can call before forcing a conclusion:
+- `qwen/qwen3-30b-a3b:free` - Good quality, free
+- `deepseek/deepseek-chat-v3.1:free` - Backup, free
+- `anthropic/claude-3.5-sonnet` - Best quality, paid
 
-- **Default: 5** - Good balance for most cases
-- **Lower (2-3)**: Faster, cheaper, but less thorough
-  - Use for quick scans or low-priority issues
-  - May miss complex dependencies
-- **Higher (7-10)**: More thorough investigation
-  - Use for critical vulnerabilities
-  - Better at tracing complex import chains
-  - Higher API costs
+**Backup model**: Automatically used if primary model rate-limited or unavailable.
 
-Set via `--max-iterations` flag or workflow input.
+### Analysis Prompts (`_AutoTriageScripts/config/prompts.json`)
 
-### Prompt Templates (`_AutoTriageScripts/config/prompts.json`)
+System prompts for different analysis types:
 
-Contains system prompts and templates for different analysis types:
+- `vulnerability_analysis` - Security vulnerabilities
+- `code_quality_analysis` - Code smells, bugs
+- `dependency_analysis` - Dependency usage
 
-- `vulnerability_analysis`: Security vulnerability evaluation
-- `code_quality_analysis`: Code smell and bug analysis
-- `dependency_analysis`: Dependency usage and impact
+Edit these to customize AI behavior and investigation strategies.
 
-## Analysis Process
+### Workflow Configuration (`.github/workflows/code-analysis.yml`)
 
-### Input
+Key settings you can adjust:
 
-The system accepts problems from three sources:
+- **Max iterations**: Default 15 tool calls per issue (balance between thoroughness and speed)
+- **Tool selection**: `--sonarqube`, `--dependency-check`, `--sbom` flags
+- **Triggers**: When workflow runs (push, PR, schedule, manual)
+- **Custom steps**: Add your own security scanning tools
 
-1. **SonarQube**: Code quality issues, bugs, security hotspots
+---
 
-   - Parsed from JSON export
-   - Includes file paths, line numbers, rule types
+## Known Issues Management
 
-2. **OWASP Dependency-Check**: CVE vulnerabilities in dependencies
+**Problem**: AI re-analyzes the same false positives every time.
 
-   - Parsed from JSON report
-   - Includes CVE IDs, severity, affected packages
+**Solution**: Document your decisions once, AI references them forever.
 
-3. **CycloneDX SBOM**: Software Bill of Materials
-   - Used as supplementary data for dependency analysis
-   - Provides version and licensing information
+### Quick Start
 
-### Output
+```bash
+# Install PyYAML (only needed for managing known issues)
+pip install pyyaml
 
-**`analysis_report.json`** - Detailed JSON report:
+# Navigate to AutoTriage scripts
+cd _AutoTriageScripts
+
+# Add your first known issue
+python manage_known_issues.py add
+```
+
+### CLI Tool
+
+```bash
+cd _AutoTriageScripts
+
+# Add a new known issue (interactive)
+python manage_known_issues.py add
+
+# List all documented issues
+python manage_known_issues.py list
+
+# Show full details
+python manage_known_issues.py show CVE-2020-14343
+
+# Search by keyword
+python manage_known_issues.py search "PyYAML"
+
+# Get statistics
+python manage_known_issues.py summary
+```
+
+### How AI Uses It
+
+**Automatic workflow**:
+
+1. AI sees issue: `CVE-2020-14343 in PyYAML`
+2. AI searches: `search_known_issues(["PyYAML", "CVE-2020-14343"])`
+3. AI finds: Match score 10.0 - human reviewed on 2025-11-13
+4. AI reads full details: `check_known_issue("CVE-2020-14343")`
+5. AI uses human context in analysis: "Per security team review..."
+
+**Benefits**:
+
+- Never analyze the same false positive twice
+- Capture institutional knowledge (things only humans know)
+- New team members see past decisions
+- Audit trail for compliance
+
+### File Format
+
+Known issues stored as YAML in `_AutoTriageScripts/known_issues/`:
+
+```yaml
+# CVE-2020-14343.yaml
+problem_id: "CVE-2020-14343"
+title: "PyYAML arbitrary code execution vulnerability"
+status: not_applicable # or: accepted_risk, mitigated, wont_fix
+
+human_reasoning: |
+  PyYAML only used in testing framework, not production.
+  Verified with grep and Docker container inspection.
+
+context:
+  - "Confirmed with DevOps team"
+  - "Not in production requirements.txt"
+
+evidence:
+  - "grep -r 'import yaml' src/ returned 0 matches"
+  - "Production SBOM scan shows PyYAML absent"
+
+reviewed_by: "Security Team"
+review_date: "2025-11-13"
+expires: "2026-11-13"
+
+re_evaluate_on:
+  - "If PyYAML added to production dependencies"
+```
+
+See `_AutoTriageScripts/known_issues/README.md` for full documentation.
+
+---
+
+## Output
+
+### Analysis Summary (`analysis_summary.md`)
+
+Human-readable markdown report categorizing issues:
+
+```markdown
+# Security and Quality Analysis Summary
+
+**Total Issues Analyzed:** 3
+**Security Issues Requiring Attention:** 0 (CRITICAL/HIGH/MEDIUM)
+**Code Quality Issues:** 0
+**False Positives/Not Applicable:** 3
+
+## 📊 Analysis Details
+
+- Problems by Severity:
+  - CRITICAL: 0
+  - HIGH: 0
+  - MEDIUM: 0
+
+## ✅ False Positives / Not Applicable
+
+### Problem: PyYAML arbitrary code execution vulnerability
+
+**Description:** CVE-2020-14343 in PyYAML 5.3.1
+
+- **ID:** CVE-2020-14343
+- **Investigation:** Found human review. Verified PyYAML not imported in src/
+- **Analysis:** Per security team (2025-11-13): Only test dependency
+- **Verify Yourself:**
+  - Run: `grep -r 'import yaml' src/`
+  - Check production containers
+- **Limitations:** Did not verify dynamic imports
+```
+
+**Categories:**
+
+- **Security Issues Requiring Attention** - CRITICAL/HIGH/MEDIUM vulnerabilities that need action
+- **Low Priority Security Issues** - LOW/TRIVIAL vulnerabilities for maintenance
+- **Code Quality Issues** - Code smells, bugs (separate from security)
+- **False Positives / Not Applicable** - Issues that don't apply to your codebase
+- **Analysis Failures - Manual Review Required** - Issues AI couldn't analyze (rare)
+
+### Detailed Report (`analysis_report.json`)
+
+Full JSON with all findings, evidence, and AI reasoning:
 
 ```json
 {
   "summary": {
-    "total_problems": 10,
-    "applicable_problems": 3,
-    "by_severity": {
-      "CRITICAL": 1,
-      "HIGH": 2
-    }
+    "total_problems": 3,
+    "applicable": 0,
+    "dismissed": 3,
+    "by_severity": { "TRIVIAL": 3 }
   },
   "results": [
     {
-      "problem_id": "CVE-2020-1234",
+      "problem_id": "CVE-2020-14343",
+      "problem_title": "PyYAML arbitrary code execution",
+      "problem_description": "CVE-2020-14343...",
+      "problem_type": "vulnerability",
       "is_applicable": false,
-      "explanation": "PyYAML is in requirements.txt but never imported...",
+      "severity": "TRIVIAL",
+      "explanation": "Per security team review...",
+      "investigation_summary": "Found human review. Verified claims.",
+      "verification_steps": ["grep -r 'import yaml' src/"],
+      "limitations": ["Did not verify dynamic imports"],
+      "recommended_actions": ["No action needed"],
       "evidence": {
-        "in_requirements": true,
-        "import_found": false,
-        "files_searched": ["*.py"]
+        "human_review_found": true,
+        "imports_found": false
       },
-      "recommended_actions": ["Remove unused PyYAML dependency", "Run pip freeze to clean requirements.txt"],
       "analysis_steps": [
-        { "step": 1, "action": "search_sbom", "tool": "search_sbom" },
-        { "step": 2, "action": "check_import_usage", "tool": "check_import_usage" }
+        { "tool": "search_known_issues", "iteration": 1 },
+        { "tool": "check_known_issue", "iteration": 2 },
+        { "tool": "check_import_usage", "iteration": 3 }
       ]
     }
   ]
 }
 ```
 
-**`analysis_summary.md`** - Human-readable markdown:
+### Conversation Logs (`conversation_logs/`)
 
-```markdown
-# Security and Quality Analysis Summary
+Full AI investigation logs for debugging:
 
-Total problems analyzed: 10
-Applicable problems: 3
+- `{problem_id}_conversation.json` - Complete tool call history per issue
+- Includes AI reasoning, tool parameters, tool results
+- Useful for understanding AI decisions or debugging unexpected results
 
-## Problems by Severity
+---
 
-- CRITICAL: 1
-- HIGH: 2
-```
+## Extending AutoTriage
 
-## Future Enhancements
+AutoTriage is designed to be extended. Add your own tools, parsers, or LLM providers - the system automatically discovers them.
 
-### Planned Features
+### Add Investigation Tool
 
-1. **User Feedback System**
+Create a new tool file in `_AutoTriageScripts/tools/`:
 
-   - Allow developers to provide feedback on false positives
-   - Store feedback in a knowledge base
-   - Agent learns from historical context to reduce false positives
+```python
+# _AutoTriageScripts/tools/git_history.py
+from .base_tool import BaseTool
 
-2. **Advanced Timeout Handling**
+class GitHistoryTool(BaseTool):
+    name = "check_git_history"
+    description = "Check git commit history for a file to see recent changes"
 
-   - Soft timeout (5 messages): Nudge LLM to change strategy
-   - Hard timeout (8 messages): Force best-effort conclusion
-   - Currently: Simple 5-iteration limit
-
-3. **Multi-Language Support**
-
-   - Currently Python-focused
-   - Expand to JavaScript, Java, Go, etc.
-
-4. **Custom Rule Definitions**
-   - Allow teams to define project-specific rules
-   - Override default analysis behavior
-
-## Testing
-
-### Test Projects
-
-- **`container_security/`**: Tests container security issues
-  - Vulnerable Dockerfile configurations
-  - Python security vulnerabilities
-- **`old_deps/`**: Tests dependency analysis
-  - Outdated packages
-  - Unused dependencies
-
-### Running Tests
-
-```bash
-cd _AutoTriageScripts/tests
-
-# Run all tests
-python test_basic.py
-
-# Test parser compatibility (ensures new parsers produce same results as old code)
-python test_parser_compatibility.py
-
-# Test CycloneDX parser
-python test_cyclonedx_parser.py
-
-# Test specific components
-python test_tools.py           # Test individual tools
-python test_path_resolution.py  # Test file path handling
-```
-
-### Parser Compatibility Guarantee
-
-The modular parser system is **guaranteed to produce identical results** to the original inline parsing functions. This is verified by the test suite:
-
-- ✅ **SonarQube Parser**: All fields match exactly (id, severity, component, type, line)
-- ✅ **Dependency-Check Parser**: All vulnerabilities parsed identically (CVE IDs, descriptions, CWE formatting)
-- ✅ **CycloneDX Parser**: New parser for SBOM vulnerability extraction
-
-Run `python _AutoTriageScripts/tests/test_parser_compatibility.py` to verify anytime.
-
-### Tool Availability Filtering
-
-The system dynamically filters tools based on their requirements:
-
-**How it works:**
-
-1. Tools can specify requirements (e.g., "SBOM file must exist")
-2. Before each analysis, the system checks which tools are available
-3. Only available tools are shown to the AI
-4. This prevents the AI from trying to use tools that can't function
-
-**Example:** If no SBOM is present, the `search_sbom` tool is automatically hidden from the AI's available tools.
-
-**Test it:**
-
-```bash
-python _AutoTriageScripts/tests/test_tool_filtering.py
-```
-
-**Add requirements to new tools:**
-
-```json
-{
-  "name": "my_tool",
-  "description": "...",
-  "requirements": [
-    {
-      "type": "file_exists",
-      "path": "{input_dir}/myfile.json",
-      "description": "My data file must be present"
+    parameters = {
+        "file_path": {
+            "type": "string",
+            "description": "File to check history for",
+            "required": True
+        },
+        "max_commits": {
+            "type": "number",
+            "description": "Number of commits to retrieve",
+            "required": False
+        }
     }
-  ]
+
+    requirements = []  # Or specify ["git"] if git must be installed
+
+    example = {
+        "call": {
+            "tool": "check_git_history",
+            "parameters": {"file_path": "app.py", "max_commits": 5}
+        },
+        "result": {
+            "success": True,
+            "commits": 5,
+            "last_author": "john@example.com",
+            "last_modified": "2025-11-10"
+        }
+    }
+
+    def execute(self, params):
+        file_path = params["file_path"]
+        max_commits = params.get("max_commits", 10)
+
+        # Run git log
+        import subprocess
+        result = subprocess.run(
+            ["git", "log", f"-{max_commits}", "--format=%H|%an|%ad", file_path],
+            capture_output=True,
+            text=True,
+            cwd=self.workspace_root
+        )
+
+        # Parse and return results
+        commits = result.stdout.strip().split('\n')
+        return {
+            "success": True,
+            "commits": len(commits),
+            "history": commits
+        }
+```
+
+**That's it!** The AI can now use `check_git_history` in its investigations. No other changes needed.
+
+### Add Security Tool Parser
+
+Create a new parser in `_AutoTriageScripts/parsers/`:
+
+```python
+# _AutoTriageScripts/parsers/snyk_parser.py
+from .base_parser import BaseParser, Problem
+from pathlib import Path
+from typing import List
+import json
+
+class SnykParser(BaseParser):
+    """Parse Snyk vulnerability reports."""
+
+    def parse(self, file_path: Path) -> List[Problem]:
+        with open(file_path) as f:
+            data = json.load(f)
+
+        problems = []
+        for vuln in data.get("vulnerabilities", []):
+            problems.append(Problem(
+                id=vuln["id"],
+                source="snyk",
+                title=vuln["title"],
+                description=vuln["description"],
+                severity=vuln["severity"].upper(),
+                component=vuln["packageName"],
+                type="vulnerability",
+                line=None,
+                raw_data=vuln
+            ))
+
+        return problems
+```
+
+Then use it in `analyze_dependencies.py`:
+
+```python
+from parsers import SnykParser
+
+# Add to collect_problems()
+if args.snyk:
+    snyk_file = input_dir / "snyk" / "snyk-report.json"
+    if snyk_file.exists():
+        parser = SnykParser()
+        snyk_problems = parser.parse(snyk_file)
+        all_problems.extend(snyk_problems)
+```
+
+### Add LLM Provider
+
+Create a new provider in `_AutoTriageScripts/llm_providers/`:
+
+```python
+# _AutoTriageScripts/llm_providers/anthropic_provider.py
+from .base_provider import BaseLLMProvider
+from anthropic import Anthropic
+
+class AnthropicProvider(BaseLLMProvider):
+    def __init__(self, config):
+        super().__init__(config)
+        self.client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        self.model = config.get("model", "claude-3-5-sonnet-20241022")
+
+    def query(self, messages, model=None, **kwargs):
+        response = self.client.messages.create(
+            model=model or self.model,
+            messages=messages,
+            max_tokens=4096
+        )
+        return response.content[0].text
+
+    def validate_config(self):
+        return os.getenv("ANTHROPIC_API_KEY") is not None
+```
+
+Register in `llm_providers/__init__.py`:
+
+```python
+from .anthropic_provider import AnthropicProvider
+
+PROVIDER_REGISTRY = {
+    "openrouter": OpenRouterProvider,
+    "anthropic": AnthropicProvider
 }
 ```
 
-Supported requirement types: `file_exists`, `executable`, `optional`
+Update `ai_config.json`:
+
+```json
+{
+  "ai_providers": {
+    "anthropic": {
+      "model": "claude-3-5-sonnet-20241022"
+    }
+  }
+}
+```
+
+---
 
 ## Troubleshooting
 
-### "API key must be set" Error
+### "API key must be set"
 
-**Solution**: Ensure `OPENROUTER_API_KEY` is set as environment variable or GitHub secret
+**Cause**: `OPENROUTER_API_KEY` not set.
 
-### "File not found" Errors
+**Fix**: Add secret in GitHub Settings → Secrets → Actions
 
-**Solution**: Check that:
+### "File not found" errors
 
-- Workspace root is correctly set (repository root, not subfolder)
-- File paths in problems don't have project prefixes like "ProjectName:"
-- Tools have been run on the correct subfolder
+**Cause**: Security tool outputs not in expected locations.
 
-### "Max iterations reached"
+**Fix**: Verify your workflow places tool outputs in `analysis-inputs/`:
 
-**Cause**: LLM couldn't reach conclusion within 5 tool calls
-**Solution**: This triggers automatic fallback with conservative defaults (not applicable)
+- SonarQube: `analysis-inputs/sonarqube/sonar-issues.json`
+- Dependency-Check: `analysis-inputs/dependency-check/dependency-check-report.json`
+- SBOM: `analysis-inputs/sbom/sbom.json`
 
-### Empty Analysis Summary
+### Empty analysis results
 
-**Cause**: No problems detected, or all problems filtered out
-**Solution**: Check that scanning tools ran successfully and `problems.json` contains issues
+**Cause**: No issues detected or all filtered out.
 
-## Contributing
+**Fix**:
 
-Contributions welcome! Areas of interest:
+1. Verify scanning tools ran successfully
+2. Check workflow logs for tool execution
+3. Look at `problems.json` in output to see what was collected
 
-- Additional tool implementations
-- Support for more languages and frameworks
-- Improved prompt engineering
-- Performance optimizations
+### Rate limiting errors
 
-## License
+**Behavior**: System automatically switches to backup model.
 
-[Add your license here]
+**Fix**:
 
-## Credits
+1. Use paid OpenRouter model for higher limits
+2. Add your own API keys to OpenRouter
+3. Increase `retry_delay_seconds` in `ai_config.json`
 
-Built with:
+### Analysis taking too long
 
-- [OpenRouter](https://openrouter.ai) for AI model access
-- [OpenAI Python SDK](https://github.com/openai/openai-python) for API client
-- [SonarQube](https://www.sonarqube.org/) for code quality analysis
-- [OWASP Dependency-Check](https://owasp.org/www-project-dependency-check/) for vulnerability scanning
-- [CycloneDX](https://cyclonedx.org/) for SBOM generation
+**Cause**: AI making many tool calls per issue.
+
+**Current default**: 15 iterations per issue (about 1-2 minutes per issue)
+
+**Options**:
+
+1. Document common false positives in `known_issues/` - AI will check these first and conclude faster
+2. Reduce iteration limit in workflow (trade-off: less thorough)
+
+---
+
+## Project Structure
+
+```
+your-repo/                              # Your repository
+├── _AutoTriageScripts/                 # AutoTriage system (copied in)
+│   ├── analyze_dependencies.py         # Entry point
+│   ├── analysis_agent.py               # Agentic loop
+│   ├── llm_client.py                   # LLM provider factory
+│   ├── tool_executor.py                # Tool dispatcher
+│   │
+│   ├── llm_providers/                  # LLM integrations
+│   │   ├── base_provider.py
+│   │   └── openrouter_provider.py
+│   │
+│   ├── parsers/                        # Security tool parsers
+│   │   ├── base_parser.py
+│   │   ├── sonarqube_parser.py
+│   │   ├── dependency_check_parser.py
+│   │   └── cyclonedx_parser.py
+│   │
+│   ├── tools/                          # AI investigation tools
+│   │   ├── search_known_issues.py      # 🔍 Searches human reviews
+│   │   ├── check_known_issues.py       # Gets specific review
+│   │   ├── check_import_usage.py       # Python package imports
+│   │   ├── search_code.py
+│   │   ├── read_file.py
+│   │   ├── read_file_lines.py
+│   │   ├── list_directory.py
+│   │   ├── find_files.py
+│   │   ├── search_sbom.py
+│   │   └── provide_analysis.py
+│   │
+│   ├── known_issues/                   # Human-reviewed issues
+│   │   ├── README.md
+│   │   ├── .template.yaml
+│   │   └── CVE-2020-14343.yaml         # Example
+│   │
+│   ├── config/
+│   │   ├── ai_config.json              # Model settings
+│   │   └── prompts.json                # System prompts
+│   │
+│   ├── manage_known_issues.py          # CLI for known issues
+│   └── requirements.txt
+│
+├── .github/workflows/
+│   └── code-analysis.yml               # Workflow (copied in)
+│
+├── src/                                # Your actual code
+├── package.json                        # Your project
+└── ...
+```
+
+---
+
+## How It Works Technically
+
+**Agentic AI System**: Unlike traditional static analysis, AutoTriage uses an LLM that can autonomously decide what to investigate and how. It iteratively calls tools based on what it learns, making up to 15 tool calls per issue.
+
+**Tool Calling**: LLM receives tool documentation, decides which tool to call with what parameters, receives results, and repeats until reaching a conclusion.
+
+**Known Issues Database**: Human decisions stored as YAML files. AI searches these first using keyword matching with relevance scoring, then reads full details if relevant match found.
+
+**Dynamic Tool Filtering**: Tools can specify requirements (files, executables). System checks requirements before each analysis and only shows usable tools to AI.
+
+**Modular Architecture**: New tools, parsers, and providers automatically discovered via Python's import system. No manual registration required.

@@ -71,8 +71,11 @@ class FindFilesTool(BaseTool):
             matches = []
             for filepath in search_dir.rglob(pattern):
                 if filepath.is_file():
-                    rel_path = str(filepath.relative_to(self.workspace_root))
-                    matches.append(rel_path)
+                    rel_path = filepath.relative_to(self.workspace_root)
+                    # Skip _AutoTriageScripts directory
+                    if rel_path.parts[0] == "_AutoTriageScripts":
+                        continue
+                    matches.append(str(rel_path))
             
             return {
                 "success": True,

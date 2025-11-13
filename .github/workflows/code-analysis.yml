@@ -6,9 +6,10 @@ on:
   workflow_dispatch:
     inputs:
       subfolder:
-        description: "Subfolder path to scan (e.g. container_security)"
-        required: true
+        description: "Subfolder path to scan (default: repo root)"
+        required: false
         type: string
+        default: "."
       max_iterations:
         description: "Maximum tool calls AI can make per issue (default: 15)"
         required: false
@@ -29,20 +30,22 @@ jobs:
       - name: Validate Subfolder
         id: validation
         run: |
-          if [ ! -d "${{ github.event.inputs.subfolder }}" ]; then
-            echo "Error: Subfolder '${{ github.event.inputs.subfolder }}' does not exist in the repository"
+          SUBFOLDER="${{ github.event.inputs.subfolder || '.' }}"
+
+          if [ ! -d "$SUBFOLDER" ]; then
+            echo "Error: Path '$SUBFOLDER' does not exist in the repository"
             exit 1
           fi
 
-          # Count files in subfolder to ensure it's not empty
-          file_count=$(find "${{ github.event.inputs.subfolder }}" -type f | wc -l)
+          # Count files (excluding _AutoTriageScripts)
+          file_count=$(find "$SUBFOLDER" -type f ! -path "*/_AutoTriageScripts/*" | wc -l)
           if [ "$file_count" -eq 0 ]; then
-            echo "Error: Subfolder '${{ github.event.inputs.subfolder }}' exists but contains no files"
+            echo "Error: Path '$SUBFOLDER' exists but contains no files"
             exit 1
           fi
 
           echo "file_count=$file_count" >> "$GITHUB_OUTPUT"
-          echo "Found $file_count files in ${{ github.event.inputs.subfolder }}"
+          echo "Analyzing $file_count files in $SUBFOLDER"
 
   sonarqube:
     needs: validate
@@ -222,7 +225,7 @@ jobs:
         id: analyze
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: python _AutoTriageScripts/analyze_dependencies.py ${{ github.event.inputs.subfolder }} --sonarqube --dependency-check --sbom --max-iterations ${{ github.event.inputs.max_iterations || 15 }}
+        run: python _AutoTriageScripts/analyze_dependencies.py ${{ github.event.inputs.subfolder || '.' }} --sonarqube --dependency-check --sbom --max-iterations ${{ github.event.inputs.max_iterations || 15 }}
 
       - name: Upload Aggregated Analysis
         uses: actions/upload-artifact@v4

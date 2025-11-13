@@ -13,7 +13,7 @@ class CheckImportUsageTool(BaseTool):
     
     # Tool metadata
     name = "check_import_usage"
-    description = "Check if a Python package is imported anywhere in the codebase"
+    description = "Check if a Python package is imported anywhere in the codebase (Python-specific: searches for 'import' statements in .py files)"
     
     parameters = {
         "package_name": {

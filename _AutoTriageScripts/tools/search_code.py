@@ -80,6 +80,9 @@ class SearchCodeTool(BaseTool):
             if file_glob and file_glob != "*":
                 cmd.extend(["--include", file_glob])
             
+            # Exclude _AutoTriageScripts directory to avoid searching tool code
+            cmd.extend(["--exclude-dir", "_AutoTriageScripts"])
+            
             cmd.append(str(self.workspace_root))
             
             result = subprocess.run(
@@ -148,6 +151,14 @@ class SearchCodeTool(BaseTool):
             
             for filepath in self.workspace_root.glob(search_pattern):
                 if filepath.is_file():
+                    # Skip _AutoTriageScripts directory
+                    try:
+                        rel_path = filepath.relative_to(self.workspace_root)
+                        if rel_path.parts[0] == "_AutoTriageScripts":
+                            continue
+                    except (ValueError, IndexError):
+                        pass
+                    
                     try:
                         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                             for line_num, line in enumerate(f, 1):

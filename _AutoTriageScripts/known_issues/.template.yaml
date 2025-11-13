@@ -1,0 +1,53 @@
+# Known Issue Template
+# Copy this file and rename it to {problem-id}.yaml
+# Then fill in your information
+
+problem_id: "ISSUE-ID-HERE"
+title: "Short, descriptive title"
+
+# Status options: not_applicable, accepted_risk, mitigated, wont_fix
+status: not_applicable
+
+# Detailed reasoning (REQUIRED)
+# Explain:
+# - What did you investigate?
+# - What did you find?
+# - Why did you make this decision?
+# - What trade-offs are involved?
+human_reasoning: |
+  Your detailed reasoning here.
+
+  Be specific about what you checked and why you reached your conclusion.
+
+  This helps the AI understand your decision and helps future reviewers
+  understand the context.
+
+# Additional context the AI doesn't have access to
+# Remove this section if not needed
+context:
+  - "Additional context point 1"
+  - "Deployment-specific information"
+  - "Organizational decisions or constraints"
+  - "Information from meetings or discussions"
+
+# Evidence of how you verified this
+# Remove this section if not needed
+evidence:
+  - "Commands you ran (e.g., 'grep -r pattern .')"
+  - "Files you checked"
+  - "Tests you performed"
+  - "Tools you used"
+
+# Who reviewed this (REQUIRED)
+reviewed_by: "Your Name / Team Name"
+
+# When was this reviewed (REQUIRED - use YYYY-MM-DD format)
+review_date: "2025-11-13"
+
+# Optional: When should this decision be re-evaluated?
+# Remove if this decision is permanent
+expires: "2026-11-13"
+
+# Optional: What conditions would require re-evaluation?
+# Remove if not applicable
+re_evaluate_on: "Condition that would change this decision (e.g., 'Major version upgrade', 'New usage detected', 'Mitigation removed')"

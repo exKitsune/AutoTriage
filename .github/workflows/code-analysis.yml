@@ -65,11 +65,12 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SUBFOLDER: ${{ github.event.inputs.subfolder || '.' }}
         with:
           args: >
-            -Dsonar.projectKey=AutoTriage
-            -Dsonar.sources=.
-            -Dsonar.inclusions=${{ github.event.inputs.subfolder }}/**/*
+            -Dsonar.projectKey=${{ github.event.repository.name }}
+            -Dsonar.sources=${{ github.event.inputs.subfolder == '.' && '.' || github.event.inputs.subfolder }}
+            -Dsonar.exclusions=_AutoTriageScripts/**
             -Dsonar.scm.provider=git
 
       - name: Wait for Analysis and Generate Report
@@ -78,8 +79,9 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
           # Wait for analysis to complete (check every 10 seconds, timeout after 5 minutes)
+          PROJECT_KEY="${{ github.event.repository.name }}"
           for i in {1..30}; do
-            status=$(curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=AutoTriage" | jq -r '.projectStatus.status')
+            status=$(curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${PROJECT_KEY}" | jq -r '.projectStatus.status')
             
             if [ "$status" != "null" ]; then
               echo "Analysis completed with status: $status"
@@ -96,8 +98,8 @@ jobs:
           done
 
           # Get analysis results
-          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/issues/search?componentKeys=AutoTriage&types=BUG,VULNERABILITY,CODE_SMELL" > sonar-issues.json
-          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/measures/component?component=AutoTriage&metricKeys=bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density" > sonar-metrics.json
+          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/issues/search?componentKeys=${PROJECT_KEY}&types=BUG,VULNERABILITY,CODE_SMELL" > sonar-issues.json
+          curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/measures/component?component=${PROJECT_KEY}&metricKeys=bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density" > sonar-metrics.json
 
           # Create human-readable report
           echo "SonarQube Analysis Report for ${{ github.event.inputs.subfolder }}" > sonar-analysis-report.md
@@ -132,16 +134,15 @@ jobs:
         env:
           JAVA_HOME: /opt/jdk
         with:
-          project: ${{ github.event.inputs.subfolder }}
-          path: ${{ github.event.inputs.subfolder }}
+          project: ${{ github.event.repository.name }}
+          path: ${{ github.event.inputs.subfolder || '.' }}
           format: "JSON"
           out: "reports"
           args: >
             --enableRetired
             --enableExperimental
-            --scan ${{ github.event.inputs.subfolder }}/**/*
             --prettyPrint
-            --exclude "**/test/**" "**/tests/**"
+            --exclude "**/test/**" "**/tests/**" "**/_AutoTriageScripts/**"
             --log "reports/dependency-check.log"
 
       - name: Upload Dependency Check Report
@@ -165,18 +166,24 @@ jobs:
 
       - name: Generate CycloneDX SBOM with Syft
         run: |
-          echo "Generating SBOM for ${{ github.event.inputs.subfolder }} using Syft..."
+          SCAN_PATH="${{ github.event.inputs.subfolder || '.' }}"
+
+          echo "Generating SBOM for $SCAN_PATH using Syft..."
           echo "Syft will auto-detect: Python, JavaScript, Java, Go, Ruby, PHP, and more!"
-          syft dir:${{ github.event.inputs.subfolder }} -o cyclonedx-json > sbom.json
+
+          # Exclude _AutoTriageScripts directory
+          syft dir:$SCAN_PATH -o cyclonedx-json --exclude '_AutoTriageScripts/**' > sbom.json
 
           # Show what was detected
+          echo ""
           echo "=== SBOM Summary ==="
-          jq '.components | length' sbom.json || echo "0"
+          jq '.components | length' sbom.json 2>/dev/null || echo "0"
           echo "components detected"
 
           # List detected package managers
+          echo ""
           echo "=== Package Ecosystems Detected ==="
-          jq -r '.components[].purl | split(":")[0] | select(. != null)' sbom.json | sort -u || echo "None"
+          jq -r '.components[]? | .purl // "unknown" | split(":")[0] // "unknown"' sbom.json 2>/dev/null | sort -u || echo "None"
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4

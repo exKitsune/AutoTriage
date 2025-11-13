@@ -861,7 +861,7 @@ class AgentSystem:
                     if severity_issues:
                         f.write(f"### {severity} Severity ({len(severity_issues)} issue{'s' if len(severity_issues) > 1 else ''})\n\n")
                         for result in severity_issues:
-                            f.write(f"*### Problem:* {result.problem_title}\n\n")
+                            f.write(f"### Problem: {result.problem_title}\n\n")
                             f.write(f"**Description:** {result.problem_description}\n\n")
                             f.write(f"- **ID:** `{result.problem_id}`\n")
                             if result.investigation_summary:
@@ -885,7 +885,7 @@ class AgentSystem:
                 f.write("## ⚠️ Low Priority Security Issues\n\n")
                 f.write("*These vulnerabilities are low severity but should be addressed during maintenance.*\n\n")
                 for result in low_vulns:
-                    f.write(f"*### Problem:* {result.problem_title}\n\n")
+                    f.write(f"### Problem: {result.problem_title}\n\n")
                     f.write(f"**Description:** {result.problem_description}\n\n")
                     f.write(f"- **ID:** `{result.problem_id}`\n")
                     f.write(f"- **Severity:** {result.severity}\n")
@@ -911,7 +911,7 @@ class AgentSystem:
                 f.write("## 🔧 Code Quality Issues\n\n")
                 f.write("*These are code quality concerns, not security vulnerabilities.*\n\n")
                 for result in code_quality:
-                    f.write(f"*### Problem:* {result.problem_title}\n\n")
+                    f.write(f"### Problem: {result.problem_title}\n\n")
                     f.write(f"**Description:** {result.problem_description}\n\n")
                     f.write(f"- **ID:** `{result.problem_id}`\n")
                     f.write(f"- **Severity:** {result.severity}\n")
@@ -936,7 +936,7 @@ class AgentSystem:
             if false_positives:
                 f.write("## ✅ False Positives / Not Applicable\n\n")
                 for result in false_positives:
-                    f.write(f"*### Problem:* {result.problem_title}\n\n")
+                    f.write(f"### Problem: {result.problem_title}\n\n")
                     f.write(f"**Description:** {result.problem_description}\n\n")
                     f.write(f"- **ID:** `{result.problem_id}`\n")
                     f.write(f"- **Severity:** {result.severity}\n")
@@ -962,7 +962,7 @@ class AgentSystem:
                 f.write("## ⚠️ Analysis Failures - Manual Review Required\n\n")
                 f.write("*These issues could not be automatically analyzed due to errors. Manual review is required.*\n\n")
                 for result in failed_analyses:
-                    f.write(f"*### Problem:* {result.problem_title}\n\n")
+                    f.write(f"### Problem: {result.problem_title}\n\n")
                     f.write(f"**Description:** {result.problem_description}\n\n")
                     f.write(f"- **ID:** `{result.problem_id}`\n")
                     f.write(f"- **Original Severity:** {result.severity}\n")

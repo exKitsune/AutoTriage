@@ -2,15 +2,12 @@ from flask import Flask, request, jsonify
 import os
 import os.path
 import yaml
-import re
 import tempfile
 import json
 import hashlib
 import logging
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlencode
-import xml.etree.ElementTree as ET
-from lxml import etree
 
 # Configure logging safely
 logging.basicConfig(
@@ -118,13 +115,6 @@ def hash_string():
     
     return jsonify({'hash': result, 'algorithm': algorithm})
 
-@app.route('/parse_xml', methods=['POST'])
-def parse_xml():
-    xml_data = request.data
-    parser = etree.XMLParser(resolve_entities=True)
-    doc = etree.fromstring(xml_data, parser)
-    return etree.tostring(doc)
-
 @app.route('/api/search')
 def search():
     query = request.args.get('q', '')
@@ -140,21 +130,6 @@ def search():
         results.extend(matching_tasks)
     
     return jsonify({'query': query, 'count': len(results), 'results': results})
-
-@app.route('/validate_email')
-def validate_email():
-    email = request.args.get('email', '')
-    pattern = re.compile(r'^([a-zA-Z0-9]+)*@[a-zA-Z0-9]+\.[a-zA-Z]+$')
-    if pattern.match(email):
-        return 'Valid email'
-    return 'Invalid email'
-
-@app.route('/fetch_url')
-def fetch_url():
-    import requests
-    url = request.args.get('url')
-    response = requests.get(url)
-    return response.text
 
 @app.route('/api/stats')
 def stats():

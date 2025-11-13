@@ -1,0 +1,38 @@
+Analyze this dependency:
+
+Dependency Information:
+{dependency}
+
+{tools_documentation}
+
+RECOMMENDED APPROACH:
+1. 🔍 FIRST: Generate search terms from the dependency (package name, CVE ID, vulnerability type) and call search_known_issues to find related human reviews
+2. Review search results: If you find matches with high relevance scores (>5.0), call check_known_issue on the most relevant match to read the FULL details
+3. If human review found: Read their complete reasoning, context, and evidence. Acknowledge and build upon it in your analysis
+4. If no relevant reviews: Check if the package exists in SBOM (search_sbom)
+5. Check if it's imported in code (check_import_usage)
+6. If imported, search for vulnerable function usage (search_code)
+7. Call provide_analysis with your conclusion (typically after 2-3 tool calls)
+
+Generating search terms:
+- Include package name (e.g., "PyYAML", "requests", "lodash")
+- Include vulnerability ID if available (e.g., "CVE-2020-14343")
+- Include key concepts (e.g., "not used", "transitive", "test only")
+- Use 3-5 specific terms that would appear in human reasoning
+
+IMPORTANT: ONLY use the tools listed in the documentation - do not invent new tools. If you have enough information, call provide_analysis to conclude.
+
+When providing your analysis, you MUST include:
+- investigation_summary: Brief summary of what you investigated and how you reached your conclusion. ALWAYS use FULL FILE PATHS from the 'component' field (e.g., 'container_security/requirements.txt' not just 'requirements.txt')
+- verification_steps: Specific commands or steps the user can run to independently verify your findings. ALWAYS use FULL FILE PATHS when mentioning files (e.g., 'grep "import yaml" container_security/app.py' not 'grep import app.py')
+- limitations: What you couldn't check or potential gaps in your analysis (be honest about what you can't verify)
+
+CRITICAL: When mentioning files in your analysis, verification steps, or recommendations, ALWAYS use the FULL FILE PATH from the 'component' field. For example:
+  - GOOD: 'Check container_security/requirements.txt for PyYAML'
+  - BAD: 'Check requirements.txt for PyYAML'
+  - GOOD: 'Run grep "import yaml" old_deps/app.py'
+  - BAD: 'Run grep "import yaml" app.py'
+The component field contains the full path - extract it and use it consistently.
+
+You can include a 'reasoning' field in any tool call to document your thought process.
+

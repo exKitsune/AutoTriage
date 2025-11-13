@@ -1,5 +1,133 @@
 [
   {
+    "id": "374733a4-4b46-4aee-aff5-683c79325c92",
+    "source": "sonarqube",
+    "title": "Make sure that using ENV to handle a secret is safe here.",
+    "description": "Make sure that using ENV to handle a secret is safe here.",
+    "severity": "CRITICAL",
+    "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+    "type": "security_hotspot",
+    "line": 16,
+    "raw_data": {
+      "key": "374733a4-4b46-4aee-aff5-683c79325c92",
+      "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+      "project": "AutoTriage",
+      "securityCategory": "auth",
+      "vulnerabilityProbability": "HIGH",
+      "status": "TO_REVIEW",
+      "line": 16,
+      "message": "Make sure that using ENV to handle a secret is safe here.",
+      "author": "15070397+exkitsune@users.noreply.github.com",
+      "creationDate": "2025-09-26T01:05:07+0000",
+      "updateDate": "2025-11-13T03:03:12+0000",
+      "textRange": {
+        "startLine": 16,
+        "endLine": 16,
+        "startOffset": 4,
+        "endOffset": 15
+      },
+      "flows": [],
+      "ruleKey": "docker:S6472",
+      "messageFormattings": []
+    }
+  },
+  {
+    "id": "a79ce223-c77a-4e24-81f0-d659146ed844",
+    "source": "sonarqube",
+    "title": "Make sure that using ENV to handle a secret is safe here.",
+    "description": "Make sure that using ENV to handle a secret is safe here.",
+    "severity": "CRITICAL",
+    "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+    "type": "security_hotspot",
+    "line": 17,
+    "raw_data": {
+      "key": "a79ce223-c77a-4e24-81f0-d659146ed844",
+      "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+      "project": "AutoTriage",
+      "securityCategory": "auth",
+      "vulnerabilityProbability": "HIGH",
+      "status": "TO_REVIEW",
+      "line": 17,
+      "message": "Make sure that using ENV to handle a secret is safe here.",
+      "author": "15070397+exkitsune@users.noreply.github.com",
+      "creationDate": "2025-09-26T01:05:07+0000",
+      "updateDate": "2025-11-13T03:03:12+0000",
+      "textRange": {
+        "startLine": 17,
+        "endLine": 17,
+        "startOffset": 4,
+        "endOffset": 18
+      },
+      "flows": [],
+      "ruleKey": "docker:S6472",
+      "messageFormattings": []
+    }
+  },
+  {
+    "id": "f6ec7a24-ad8c-4c55-86a1-f947c1cd6725",
+    "source": "sonarqube",
+    "title": "Make sure disabling CSRF protection is safe here.",
+    "description": "Make sure disabling CSRF protection is safe here.",
+    "severity": "CRITICAL",
+    "component": "AutoTriage:container_security/app/app.py",
+    "type": "security_hotspot",
+    "line": 6,
+    "raw_data": {
+      "key": "f6ec7a24-ad8c-4c55-86a1-f947c1cd6725",
+      "component": "AutoTriage:container_security/app/app.py",
+      "project": "AutoTriage",
+      "securityCategory": "csrf",
+      "vulnerabilityProbability": "HIGH",
+      "status": "TO_REVIEW",
+      "line": 6,
+      "message": "Make sure disabling CSRF protection is safe here.",
+      "author": "15070397+exkitsune@users.noreply.github.com",
+      "creationDate": "2025-09-26T01:05:07+0000",
+      "updateDate": "2025-11-13T03:03:12+0000",
+      "textRange": {
+        "startLine": 6,
+        "endLine": 6,
+        "startOffset": 6,
+        "endOffset": 21
+      },
+      "flows": [],
+      "ruleKey": "python:S4502",
+      "messageFormattings": []
+    }
+  },
+  {
+    "id": "608c5bb8-2306-475d-845a-80ee675d9ebf",
+    "source": "sonarqube",
+    "title": "Make sure disabling CSRF protection is safe here.",
+    "description": "Make sure disabling CSRF protection is safe here.",
+    "severity": "CRITICAL",
+    "component": "AutoTriage:old_deps/app.py",
+    "type": "security_hotspot",
+    "line": 3,
+    "raw_data": {
+      "key": "608c5bb8-2306-475d-845a-80ee675d9ebf",
+      "component": "AutoTriage:old_deps/app.py",
+      "project": "AutoTriage",
+      "securityCategory": "csrf",
+      "vulnerabilityProbability": "HIGH",
+      "status": "TO_REVIEW",
+      "line": 3,
+      "message": "Make sure disabling CSRF protection is safe here.",
+      "author": "15070397+exkitsune@users.noreply.github.com",
+      "creationDate": "2025-09-28T01:13:29+0000",
+      "updateDate": "2025-11-13T03:03:12+0000",
+      "textRange": {
+        "startLine": 3,
+        "endLine": 3,
+        "startOffset": 6,
+        "endOffset": 21
+      },
+      "flows": [],
+      "ruleKey": "python:S4502",
+      "messageFormattings": []
+    }
+  },
+  {
     "id": "CVE-2020-14343",
     "source": "dependency-check",
     "title": "Vulnerability in PyYAML:5.3.1: CVE-2020-14343",
@@ -175,6 +303,166 @@
       "issueStatus": "OPEN",
       "prioritizedRule": false,
       "fromSonarQubeUpdate": false
+    }
+  },
+  {
+    "id": "fdef9e6a-02ee-42db-8e5f-8b883b7094c1",
+    "source": "sonarqube",
+    "title": "Make sure that exposing administration services is safe here.",
+    "description": "Make sure that exposing administration services is safe here.",
+    "severity": "HIGH",
+    "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+    "type": "security_hotspot",
+    "line": 30,
+    "raw_data": {
+      "key": "fdef9e6a-02ee-42db-8e5f-8b883b7094c1",
+      "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+      "project": "AutoTriage",
+      "securityCategory": "permission",
+      "vulnerabilityProbability": "MEDIUM",
+      "status": "TO_REVIEW",
+      "line": 30,
+      "message": "Make sure that exposing administration services is safe here.",
+      "author": "15070397+exkitsune@users.noreply.github.com",
+      "creationDate": "2025-09-26T01:05:07+0000",
+      "updateDate": "2025-11-13T03:03:12+0000",
+      "textRange": {
+        "startLine": 30,
+        "endLine": 30,
+        "startOffset": 7,
+        "endOffset": 9
+      },
+      "flows": [],
+      "ruleKey": "docker:S6473",
+      "messageFormattings": []
+    }
+  },
+  {
+    "id": "a9f7ea1e-e464-4704-af5c-492fce83694f",
+    "source": "sonarqube",
+    "title": "The \"ubuntu\" image runs with \"root\" as the default user. Make sure it is safe here.",
+    "description": "The \"ubuntu\" image runs with \"root\" as the default user. Make sure it is safe here.",
+    "severity": "HIGH",
+    "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+    "type": "security_hotspot",
+    "line": 2,
+    "raw_data": {
+      "key": "a9f7ea1e-e464-4704-af5c-492fce83694f",
+      "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+      "project": "AutoTriage",
+      "securityCategory": "permission",
+      "vulnerabilityProbability": "MEDIUM",
+      "status": "TO_REVIEW",
+      "line": 2,
+      "message": "The \"ubuntu\" image runs with \"root\" as the default user. Make sure it is safe here.",
+      "author": "15070397+exkitsune@users.noreply.github.com",
+      "creationDate": "2025-09-26T01:05:07+0000",
+      "updateDate": "2025-11-13T03:03:12+0000",
+      "textRange": {
+        "startLine": 2,
+        "endLine": 2,
+        "startOffset": 0,
+        "endOffset": 18
+      },
+      "flows": [],
+      "ruleKey": "docker:S6471",
+      "messageFormattings": []
+    }
+  },
+  {
+    "id": "24a81f5e-707f-4c29-96af-dc426c2c8283",
+    "source": "sonarqube",
+    "title": "Make sure this debug feature is deactivated before delivering the code in production.",
+    "description": "Make sure this debug feature is deactivated before delivering the code in production.",
+    "severity": "MEDIUM",
+    "component": "AutoTriage:container_security/app/app.py",
+    "type": "security_hotspot",
+    "line": 42,
+    "raw_data": {
+      "key": "24a81f5e-707f-4c29-96af-dc426c2c8283",
+      "component": "AutoTriage:container_security/app/app.py",
+      "project": "AutoTriage",
+      "securityCategory": "insecure-conf",
+      "vulnerabilityProbability": "LOW",
+      "status": "TO_REVIEW",
+      "line": 42,
+      "message": "Make sure this debug feature is deactivated before delivering the code in production.",
+      "author": "15070397+exkitsune@users.noreply.github.com",
+      "creationDate": "2025-09-26T01:05:07+0000",
+      "updateDate": "2025-11-13T03:03:12+0000",
+      "textRange": {
+        "startLine": 42,
+        "endLine": 42,
+        "startOffset": 39,
+        "endOffset": 49
+      },
+      "flows": [],
+      "ruleKey": "python:S4507",
+      "messageFormattings": []
+    }
+  },
+  {
+    "id": "328bc2d7-452b-4b91-8f4a-a7df4551fba1",
+    "source": "sonarqube",
+    "title": "Make sure this debug feature is deactivated before delivering the code in production.",
+    "description": "Make sure this debug feature is deactivated before delivering the code in production.",
+    "severity": "MEDIUM",
+    "component": "AutoTriage:old_deps/app.py",
+    "type": "security_hotspot",
+    "line": 10,
+    "raw_data": {
+      "key": "328bc2d7-452b-4b91-8f4a-a7df4551fba1",
+      "component": "AutoTriage:old_deps/app.py",
+      "project": "AutoTriage",
+      "securityCategory": "insecure-conf",
+      "vulnerabilityProbability": "LOW",
+      "status": "TO_REVIEW",
+      "line": 10,
+      "message": "Make sure this debug feature is deactivated before delivering the code in production.",
+      "author": "15070397+exkitsune@users.noreply.github.com",
+      "creationDate": "2025-09-28T01:13:29+0000",
+      "updateDate": "2025-11-13T03:03:12+0000",
+      "textRange": {
+        "startLine": 10,
+        "endLine": 10,
+        "startOffset": 12,
+        "endOffset": 22
+      },
+      "flows": [],
+      "ruleKey": "python:S4507",
+      "messageFormattings": []
+    }
+  },
+  {
+    "id": "4e58f0e0-9eb8-417f-b3c4-0f33cee9b5db",
+    "source": "sonarqube",
+    "title": "Make sure automatically installing recommended packages is safe here.",
+    "description": "Make sure automatically installing recommended packages is safe here.",
+    "severity": "MEDIUM",
+    "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+    "type": "security_hotspot",
+    "line": 6,
+    "raw_data": {
+      "key": "4e58f0e0-9eb8-417f-b3c4-0f33cee9b5db",
+      "component": "AutoTriage:container_security/vulnerable/Dockerfile",
+      "project": "AutoTriage",
+      "securityCategory": "others",
+      "vulnerabilityProbability": "LOW",
+      "status": "TO_REVIEW",
+      "line": 6,
+      "message": "Make sure automatically installing recommended packages is safe here.",
+      "author": "15070397+exkitsune@users.noreply.github.com",
+      "creationDate": "2025-09-26T01:05:07+0000",
+      "updateDate": "2025-11-13T03:03:12+0000",
+      "textRange": {
+        "startLine": 6,
+        "endLine": 6,
+        "startOffset": 22,
+        "endOffset": 40
+      },
+      "flows": [],
+      "ruleKey": "docker:S6500",
+      "messageFormattings": []
     }
   },
   {

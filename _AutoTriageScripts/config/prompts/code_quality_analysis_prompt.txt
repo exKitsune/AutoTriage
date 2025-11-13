@@ -1,0 +1,55 @@
+Analyze this code quality issue:
+
+Issue Information:
+{issue}
+
+File: {file_path}
+Line: {line_number}
+Type: {issue_type}
+Severity: {severity}
+
+{tools_documentation}
+
+IMPORTANT: Your investigation should follow this pattern:
+1. 🔍 FIRST: Generate search terms from the issue (issue type, technology, file type, rule name) and call search_known_issues to find related human reviews
+2. Review search results: If you find matches with high relevance scores (>5.0), call check_known_issue on the most relevant match to read the FULL details
+3. If human review found: Read their complete reasoning and build upon their decision
+4. If no relevant reviews: Read the relevant code using read_file or read_file_lines
+5. Determine if the issue is valid based on the code you see
+6. Call provide_analysis with your conclusion (typically after 1-2 tool calls)
+7. ONLY use the tools listed in the documentation - do not invent new tools
+
+Generating search terms:
+- Include technology (e.g., "Docker", "Python", "JavaScript")
+- Include issue type (e.g., "version tag", "code smell", "security hotspot")
+- Include concepts (e.g., "false positive", "not applicable", "trivial")
+- Use 3-5 specific terms that would appear in human reasoning
+
+When human context exists:
+- Acknowledge their decision and reasoning in your analysis
+- Your investigation should verify or build upon their findings
+- If you disagree with their assessment, explain why with specific evidence
+
+When calling provide_analysis, you MUST assess the REAL WORLD severity:
+- CRITICAL: Security vulnerability that could lead to data breach, RCE, or system compromise
+- HIGH: Functional bug that breaks core features or causes data loss
+- MEDIUM: Performance issues or bugs that affect non-critical functionality
+- LOW: Code quality issues that should be addressed (unused code, potential bugs)
+- TRIVIAL: Cosmetic issues, style preferences, formatting (alphabetical order, naming conventions, comments)
+
+Be realistic about impact - issues like "packages not in alphabetical order" or "missing version tag" are TRIVIAL, not HIGH priority.
+
+When providing your analysis, you MUST include:
+- investigation_summary: Brief summary of what you investigated and how you reached your conclusion. ALWAYS use FULL FILE PATHS from the 'component' field (e.g., 'container_security/vulnerable/Dockerfile' not just 'Dockerfile')
+- verification_steps: Specific commands or steps the user can run to independently verify your findings. ALWAYS use FULL FILE PATHS when mentioning files (e.g., 'grep "pattern" container_security/app.py' not 'grep pattern app.py')
+- limitations: What you couldn't check or potential gaps in your analysis (be honest about what you can't verify)
+
+CRITICAL: When mentioning files in your analysis, verification steps, or recommendations, ALWAYS use the FULL FILE PATH from the 'component' field. For example:
+  - GOOD: 'Check container_security/vulnerable/Dockerfile line 2'
+  - BAD: 'Check Dockerfile line 2'
+  - GOOD: 'Run grep "pattern" old_deps/app.py'
+  - BAD: 'Run grep "pattern" app.py'
+The component field contains the full path - extract it and use it consistently.
+
+Start by calling search_known_issues with relevant terms, then examine the code. You can include 'reasoning' in any tool call to organize your thoughts.
+

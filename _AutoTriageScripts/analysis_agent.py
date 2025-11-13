@@ -52,6 +52,56 @@ class AnalysisResult:
 class AnalysisAgent:
     """Agent responsible for analyzing a single security/quality problem."""
     
+    @staticmethod
+    def _load_prompts() -> Dict[str, Dict[str, str]]:
+        """
+        Load prompt templates from text files.
+        
+        Returns:
+            Dictionary with prompt data for each analysis type.
+            Format: {
+                "vulnerability_analysis": {
+                    "system_context": "...",
+                    "prompt_template": "..."
+                },
+                ...
+            }
+        """
+        prompts_dir = Path(__file__).parent / "config" / "prompts"
+        prompts = {}
+        
+        # Define the analysis types and their corresponding file prefixes
+        analysis_types = [
+            "vulnerability_analysis",
+            "code_quality_analysis",
+            "dependency_analysis"
+        ]
+        
+        for analysis_type in analysis_types:
+            system_file = prompts_dir / f"{analysis_type}_system.txt"
+            prompt_file = prompts_dir / f"{analysis_type}_prompt.txt"
+            
+            # Read system context
+            if system_file.exists():
+                with open(system_file, 'r', encoding='utf-8') as f:
+                    system_context = f.read().strip()
+            else:
+                system_context = ""
+            
+            # Read prompt template
+            if prompt_file.exists():
+                with open(prompt_file, 'r', encoding='utf-8') as f:
+                    prompt_template = f.read().strip()
+            else:
+                prompt_template = ""
+            
+            prompts[analysis_type] = {
+                "system_context": system_context,
+                "prompt_template": prompt_template
+            }
+        
+        return prompts
+    
     def __init__(
         self,
         problem: Dict,
@@ -73,9 +123,8 @@ class AnalysisAgent:
         # Initialize tool executor
         self.tool_executor = ToolExecutor(workspace_root, input_dir)
         
-        # Load prompt templates
-        with open(Path(__file__).parent / "config" / "prompts.json") as f:
-            self.prompts = json.load(f)
+        # Load prompt templates from text files
+        self.prompts = self._load_prompts()
     
     def _execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """

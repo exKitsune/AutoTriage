@@ -1,24 +1,24 @@
 {
   "reportSchema" : "1.1",
   "scanInfo" : {
-    "engineVersion" : "12.1.6",
+    "engineVersion" : "12.1.9",
     "dataSource" : [ {
       "name" : "NVD API Last Checked",
-      "timestamp" : "2025-10-06T11:36:24Z"
+      "timestamp" : "2025-11-12T11:38:05Z"
     }, {
       "name" : "NVD API Last Modified",
-      "timestamp" : "2025-10-06T11:15:33Z"
+      "timestamp" : "2025-11-12T11:15:48Z"
     }, {
       "name" : "NVD Cache Last Checked",
-      "timestamp" : "2025-10-06T11:36:24Z"
+      "timestamp" : "2025-11-12T11:38:05Z"
     }, {
       "name" : "NVD Cache Last Modified",
-      "timestamp" : "2025-10-06T11:15:33Z"
+      "timestamp" : "2025-11-12T11:15:48Z"
     } ]
   },
   "projectInfo" : {
-    "name" : "container_security",
-    "reportDate" : "2025-10-07T03:17:42.781607352Z",
+    "name" : "AutoTriage",
+    "reportDate" : "2025-11-13T03:46:24.957293531Z",
     "credits" : {
       "NVD" : "This product uses the NVD API but is not endorsed or certified by the NVD. This report contains data retrieved from the National Vulnerability Database: https://nvd.nist.gov",
       "CISA" : "This report may contain data retrieved from the CISA Known Exploited Vulnerability Catalog: https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
@@ -28,6 +28,68 @@
     }
   },
   "dependencies" : [ {
+    "isVirtual" : true,
+    "fileName" : "Flask:0.10.1",
+    "filePath" : "/github/workspace/old_deps/requirements.txt:Flask/0.10.1",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "Flask"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "Flask"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "0.10.1"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/flask@0.10.1",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : true,
+    "fileName" : "Jinja2:2.7.3",
+    "filePath" : "/github/workspace/old_deps/requirements.txt:Jinja2/2.7.3",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "Jinja2"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "Jinja2"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "2.7.3"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/jinja2@2.7.3",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
     "isVirtual" : true,
     "fileName" : "PyYAML:5.3.1",
     "filePath" : "/github/workspace/container_security/requirements.txt:PyYAML/5.3.1",
@@ -153,6 +215,124 @@
     } ]
   }, {
     "isVirtual" : true,
+    "fileName" : "Werkzeug:0.9.6",
+    "filePath" : "/github/workspace/old_deps/requirements.txt:Werkzeug/0.9.6",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "Werkzeug"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "Werkzeug"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "0.9.6"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/werkzeug@0.9.6",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : false,
+    "fileName" : "__init__.py",
+    "filePath" : "/github/workspace/_AutoTriageScripts/llm_providers/__init__.py",
+    "md5" : "02b6c8c95a0cfb8522c99f665c96b24a",
+    "sha1" : "a7bab8147f41249cde5f83f0bad7ea18dd7cd7ed",
+    "sha256" : "2f5098ca949d6be07508401d9d736ead0c549833702d554b62c90033d18c0090",
+    "description" : "\nLLM Provider Module\n\nThis module provides a pluggable interface for different LLM providers.\nUsers can easily swap between OpenRouter, OpenAI, Anthropic, Azure, etc.\n",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "MEDIUM",
+        "source" : "__init__.py",
+        "name" : "PackageName",
+        "value" : "llm_providers"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "__init__.py",
+        "name" : "PackageName",
+        "value" : "llm_providers"
+      } ],
+      "versionEvidence" : [ ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/llm-providers",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : false,
+    "fileName" : "__init__.py",
+    "filePath" : "/github/workspace/_AutoTriageScripts/parsers/__init__.py",
+    "md5" : "ac89a1741517ede72070c8a94130d0db",
+    "sha1" : "0d18103ea25b23eb60f9427cfd1ef415dfebffbc",
+    "sha256" : "c6a66657eb646d71bae57d41c2972e6a048bbd94315f57ebb6f94d4d17d3618c",
+    "description" : "\nParser Module\n\nThis module provides a pluggable interface for parsing different security\nand code quality tool outputs.\n\nUsers can easily add custom parsers for new tools by implementing the\nBaseParser interface.\n",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "MEDIUM",
+        "source" : "__init__.py",
+        "name" : "PackageName",
+        "value" : "parsers"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "__init__.py",
+        "name" : "PackageName",
+        "value" : "parsers"
+      } ],
+      "versionEvidence" : [ ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/parsers",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : false,
+    "fileName" : "__init__.py",
+    "filePath" : "/github/workspace/_AutoTriageScripts/tools/__init__.py",
+    "md5" : "8c674235f8660e644c115c2e7eb067b0",
+    "sha1" : "f2740aeeedc0a92d658bd3990ffe58046c8640bf",
+    "sha256" : "0878fa1bda80d0f6860c3950c2d3cdea9427c12bb14bc0bc666095e5a97eadea",
+    "description" : "\nTools Module\n\nAuto-discovers and registers all tools from this directory.\nEach tool is self-contained with its implementation and metadata.\n",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "MEDIUM",
+        "source" : "__init__.py",
+        "name" : "PackageName",
+        "value" : "tools"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "__init__.py",
+        "name" : "PackageName",
+        "value" : "tools"
+      } ],
+      "versionEvidence" : [ ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/tools",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : true,
     "fileName" : "cryptography:3.3.2",
     "filePath" : "/github/workspace/container_security/requirements.txt:cryptography/3.3.2",
     "evidenceCollected" : {
@@ -215,6 +395,130 @@
     } ]
   }, {
     "isVirtual" : true,
+    "fileName" : "itsdangerous:0.24",
+    "filePath" : "/github/workspace/old_deps/requirements.txt:itsdangerous/0.24",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "itsdangerous"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "itsdangerous"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "0.24"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/itsdangerous@0.24",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : true,
+    "fileName" : "openai>=1.12.0  # For OpenAI-compatible API interfaces",
+    "filePath" : "/github/workspace/_AutoTriageScripts/requirements.txt:openai>=1.12.0  # For OpenAI-compatible API interfaces/null",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "openai>=1.12.0  # For OpenAI-compatible API interfaces"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "openai>=1.12.0  # For OpenAI-compatible API interfaces"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "$enc.json($evidence.getValue().trim())"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/openai%3E%3D1.12.0%20%20%23%20for%20openai-compatible%20api%20interfaces",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : true,
+    "fileName" : "python-dotenv>=1.0.0  # For environment variable management",
+    "filePath" : "/github/workspace/_AutoTriageScripts/requirements.txt:python-dotenv>=1.0.0  # For environment variable management/null",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "python-dotenv>=1.0.0  # For environment variable management"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "python-dotenv>=1.0.0  # For environment variable management"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "$enc.json($evidence.getValue().trim())"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/python-dotenv%3E%3D1.0.0%20%20%23%20for%20environment%20variable%20management",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : true,
+    "fileName" : "pyyaml>=6.0.1  # For YAML file parsing",
+    "filePath" : "/github/workspace/_AutoTriageScripts/requirements.txt:pyyaml>=6.0.1  # For YAML file parsing/null",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "pyyaml>=6.0.1  # For YAML file parsing"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "pyyaml>=6.0.1  # For YAML file parsing"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "$enc.json($evidence.getValue().trim())"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/pyyaml%3E%3D6.0.1%20%20%23%20for%20yaml%20file%20parsing",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : true,
     "fileName" : "requests:2.25.1",
     "filePath" : "/github/workspace/container_security/requirements.txt:requests/2.25.1",
     "evidenceCollected" : {
@@ -242,6 +546,37 @@
     },
     "packages" : [ {
       "id" : "pkg:pypi/requests@2.25.1",
+      "confidence" : "HIGHEST"
+    } ]
+  }, {
+    "isVirtual" : true,
+    "fileName" : "requests:2.31.0",
+    "filePath" : "/github/workspace/_AutoTriageScripts/requirements.txt:requests/2.31.0",
+    "evidenceCollected" : {
+      "vendorEvidence" : [ {
+        "type" : "vendor",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "vendor",
+        "value" : "requests"
+      } ],
+      "productEvidence" : [ {
+        "type" : "product",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "product",
+        "value" : "requests"
+      } ],
+      "versionEvidence" : [ {
+        "type" : "version",
+        "confidence" : "HIGHEST",
+        "source" : "requirements.txt",
+        "name" : "version",
+        "value" : "2.31.0"
+      } ]
+    },
+    "packages" : [ {
+      "id" : "pkg:pypi/requests@2.31.0",
       "confidence" : "HIGHEST"
     } ]
   }, {

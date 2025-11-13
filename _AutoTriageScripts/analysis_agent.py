@@ -40,6 +40,7 @@ class AnalysisResult:
     investigation_summary: str = ""  # Summary of what the LLM did to reach its conclusion
     verification_steps: List[str] = None  # How user can verify the findings themselves
     limitations: List[str] = None  # What the LLM couldn't check or missed
+    analysis_failed: bool = False  # Whether the analysis failed due to errors (not a determination)
     
     def __post_init__(self):
         """Initialize mutable defaults."""
@@ -145,14 +146,18 @@ class AnalysisAgent:
             raw_response: Raw AI response if available
         
         Returns:
-            Fallback response dict
+            Fallback response dict with error flag
         """
         return {
             "is_applicable": False,  # Conservative: assume not applicable on error
             "real_severity": "LOW",  # Conservative default for failed analysis
             "explanation": f"Analysis failed: {error}. Manual review recommended.",
             "evidence": {"error": error, "raw_response": raw_response if raw_response else ""},
-            "recommended_actions": ["Manual review required due to analysis failure"]
+            "recommended_actions": ["Manual review required due to analysis failure"],
+            "investigation_summary": "Analysis failed before investigation could complete",
+            "verification_steps": ["Manually review the issue details", "Check logs for error details"],
+            "limitations": ["Automated analysis failed - full manual review required"],
+            "_analysis_error": True  # Explicit flag to indicate analysis failure
         }
     
     def _run_agentic_loop(
@@ -319,6 +324,7 @@ class AnalysisAgent:
                     # Add conversation history for debugging
                     parameters["_conversation_history"] = conversation_history
                     parameters["_final_message_count"] = len(messages)
+                    parameters["_analysis_error"] = False  # Explicitly mark as successful
                     
                     return parameters
                 
@@ -441,6 +447,7 @@ class AnalysisAgent:
                 # Add conversation history
                 result["_conversation_history"] = conversation_history
                 result["_final_message_count"] = len(messages)
+                result["_analysis_error"] = False  # Completed successfully (just hit max iterations)
                 return result
         except:
             pass
@@ -459,6 +466,7 @@ class AnalysisAgent:
         # Add conversation history
         fallback["_conversation_history"] = conversation_history
         fallback["_final_message_count"] = len(messages)
+        # _analysis_error is already set to True in _create_fallback_response
         return fallback
     
     def analyze_vulnerability(self) -> Dict[str, Any]:
@@ -674,10 +682,13 @@ class AnalysisAgent:
             )
             
             # Set state based on whether there was an error
-            if "error" in analysis.get("evidence", {}):
+            # Check explicit error flag from analysis
+            if analysis.get("_analysis_error", False):
+                result.analysis_failed = True
                 self.state = AnalysisState.ERROR
                 print(f"Warning: Analysis completed with errors for {self.problem.get('id', 'unknown')}")
             else:
+                result.analysis_failed = False
                 self.state = AnalysisState.COMPLETE
             
             return result
@@ -700,7 +711,8 @@ class AnalysisAgent:
                 reasoning="",
                 investigation_summary="Analysis failed before investigation could complete",
                 verification_steps=["Manually review the issue details", "Check logs for error details"],
-                limitations=["Automated analysis failed - full manual review required"]
+                limitations=["Automated analysis failed - full manual review required"],
+                analysis_failed=True
             )
 
 class AgentSystem:
@@ -782,7 +794,8 @@ class AgentSystem:
                     "limitations": r.limitations,
                     "evidence": r.evidence,
                     "analysis_steps": r.analysis_steps,
-                    "reasoning": r.reasoning
+                    "reasoning": r.reasoning,
+                    "analysis_failed": r.analysis_failed
                 }
                 for r in self.results
             ]
@@ -808,10 +821,15 @@ class AgentSystem:
             is_vulnerability = lambda r: r.problem_type in ['vulnerability', 'security-hotspot']
             is_code_quality = lambda r: r.problem_type in ['code_smell', 'bug', 'code-smell']
             
-            important_vulns = [r for r in self.results if r.is_applicable and is_vulnerability(r) and r.severity in ["CRITICAL", "HIGH", "MEDIUM"]]
-            low_vulns = [r for r in self.results if r.is_applicable and is_vulnerability(r) and r.severity in ["LOW", "TRIVIAL"]]
-            code_quality = [r for r in self.results if r.is_applicable and is_code_quality(r)]
-            false_positive_count = len([r for r in self.results if not r.is_applicable])
+            # Separate failed analyses from actual determinations
+            failed_analyses = [r for r in self.results if r.analysis_failed]
+            successful_results = [r for r in self.results if not r.analysis_failed]
+            
+            important_vulns = [r for r in successful_results if r.is_applicable and is_vulnerability(r) and r.severity in ["CRITICAL", "HIGH", "MEDIUM"]]
+            low_vulns = [r for r in successful_results if r.is_applicable and is_vulnerability(r) and r.severity in ["LOW", "TRIVIAL"]]
+            code_quality = [r for r in successful_results if r.is_applicable and is_code_quality(r)]
+            false_positives = [r for r in successful_results if not r.is_applicable]
+            false_positive_count = len(false_positives)
             
             # Header
             f.write("# Security and Quality Analysis Summary\n\n")
@@ -819,7 +837,10 @@ class AgentSystem:
             f.write(f"**Total Issues Analyzed:** {report['summary']['total_problems']}\n")
             f.write(f"**Security Issues Requiring Attention:** {len(important_vulns)} (CRITICAL/HIGH/MEDIUM)\n")
             f.write(f"**Code Quality Issues:** {len(code_quality)}\n")
-            f.write(f"**False Positives/Not Applicable:** {false_positive_count}\n\n")
+            f.write(f"**False Positives/Not Applicable:** {false_positive_count}\n")
+            if failed_analyses:
+                f.write(f"**⚠️ Analysis Failures (Manual Review Required):** {len(failed_analyses)}\n")
+            f.write("\n")
             
             # Analysis Details at the top
             f.write("## 📊 Analysis Details\n\n")
@@ -912,7 +933,6 @@ class AgentSystem:
                     f.write("\n")
             
             # False positives
-            false_positives = [r for r in self.results if not r.is_applicable]
             if false_positives:
                 f.write("## ✅ False Positives / Not Applicable\n\n")
                 for result in false_positives:
@@ -935,4 +955,20 @@ class AgentSystem:
                         f.write(f"- **Limitations:**\n")
                         for limitation in result.limitations:
                             f.write(f"  - {limitation}\n")
+                    f.write("\n")
+            
+            # Failed analyses - separate category for errors
+            if failed_analyses:
+                f.write("## ⚠️ Analysis Failures - Manual Review Required\n\n")
+                f.write("*These issues could not be automatically analyzed due to errors. Manual review is required.*\n\n")
+                for result in failed_analyses:
+                    f.write(f"**Problem:** {result.problem_title}\n\n")
+                    f.write(f"**Description:** {result.problem_description}\n\n")
+                    f.write(f"- **ID:** `{result.problem_id}`\n")
+                    f.write(f"- **Original Severity:** {result.severity}\n")
+                    f.write(f"- **Error:** {result.explanation}\n")
+                    if result.recommended_actions and isinstance(result.recommended_actions, list):
+                        f.write(f"- **Next Steps:**\n")
+                        for action in result.recommended_actions:
+                            f.write(f"  - {action}\n")
                     f.write("\n")

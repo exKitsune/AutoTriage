@@ -228,10 +228,13 @@ def main():
         results = agent_system.analyze_problems(problems_as_dicts, output_dir=output_dir)
         agent_system.generate_report(output_dir)
         
-        # Count issues by priority
-        important_count = sum(1 for r in results if r.is_applicable and r.severity in ["CRITICAL", "HIGH", "MEDIUM"])
-        low_priority_count = sum(1 for r in results if r.is_applicable and r.severity in ["LOW", "TRIVIAL"])
-        dismissed_count = sum(1 for r in results if not r.is_applicable)
+        # Count issues by priority - separate failed analyses
+        failed_count = sum(1 for r in results if r.analysis_failed)
+        successful_results = [r for r in results if not r.analysis_failed]
+        
+        important_count = sum(1 for r in successful_results if r.is_applicable and r.severity in ["CRITICAL", "HIGH", "MEDIUM"])
+        low_priority_count = sum(1 for r in successful_results if r.is_applicable and r.severity in ["LOW", "TRIVIAL"])
+        dismissed_count = sum(1 for r in successful_results if not r.is_applicable)
         
         print(f"\n{'='*80}")
         print("✅ ANALYSIS COMPLETE")
@@ -241,6 +244,8 @@ def main():
         if low_priority_count > 0:
             print(f"ℹ️  Low priority issues: {low_priority_count}")
         print(f"✅ Issues dismissed: {dismissed_count}")
+        if failed_count > 0:
+            print(f"⚠️  Analysis failures (manual review required): {failed_count}")
         
         # Calculate efficiency metrics
         if results:
@@ -250,7 +255,6 @@ def main():
             print(f"\n📊 Analysis Performance:")
             print(f"  Total investigation steps: {total_steps}")
             print(f"  Average steps per issue: {avg_steps:.1f}")
-            print(f"  Efficiency: {'🔥 Excellent' if avg_steps < 3 else '✅ Good' if avg_steps < 5 else '⚠️  Could improve'}")
         
         print(f"\n📁 Results written to:")
         print(f"  📄 {output_dir / 'analysis_report.json'}")

@@ -18,8 +18,8 @@ class CheckKnownIssuesTool(BaseTool):
     """Check if a problem has already been reviewed by humans."""
     
     # Tool metadata
-    name = "check_known_issues"
-    description = "Check if this problem has already been reviewed by humans with documented reasoning. ALWAYS call this FIRST before investigating - it may save significant time and provide valuable context."
+    name = "check_known_issue"
+    description = "Get FULL details of a specific human review by exact problem ID. Use this AFTER search_known_issues to read complete reasoning, context, and evidence for a specific issue."
     
     parameters = {
         "problem_id": {
@@ -46,7 +46,7 @@ class CheckKnownIssuesTool(BaseTool):
     
     example = {
         "call": {
-            "tool": "check_known_issues",
+            "tool": "check_known_issue",
             "parameters": {
                 "problem_id": "CVE-2020-14343"
             }

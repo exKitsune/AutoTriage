@@ -21,7 +21,7 @@ class SearchKnownIssuesTool(BaseTool):
     
     # Tool metadata
     name = "search_known_issues"
-    description = "Search known issues database using keywords to find related human reviews. Generate search terms from the problem context (package names, vulnerability types, technologies, file paths). Returns list of potentially relevant reviews."
+    description = "🔍 CALL THIS FIRST! Search known issues database using keywords to find related human reviews. Generate search terms from the problem context (package names, vulnerability types, technologies, file paths). Returns list of potentially relevant reviews with relevance scores. For high-scoring matches (>5.0), use check_known_issue to read full details."
     
     parameters = {
         "search_terms": {

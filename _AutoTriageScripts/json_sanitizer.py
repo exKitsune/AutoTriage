@@ -126,6 +126,7 @@ def parse_llm_json_response(response: str) -> Tuple[Dict[str, Any], str]:
     1. Parse as-is
     2. Apply sanitization and retry
     3. Extract JSON from markdown code blocks
+    4. Detect and report truncated responses
     
     Args:
         response: The LLM response string
@@ -149,6 +150,21 @@ def parse_llm_json_response(response: str) -> Tuple[Dict[str, Any], str]:
         return json.loads(response.strip()), ""
     except json.JSONDecodeError as e:
         first_error = str(e)
+        
+        # Check if this is a truncated response
+        if "Unterminated string" in str(e) or "Expecting" in str(e):
+            # Count opening vs closing braces
+            open_braces = response.count('{')
+            close_braces = response.count('}')
+            
+            if open_braces > close_braces:
+                return None, (
+                    f"Response appears to be truncated or incomplete. "
+                    f"Found {open_braces} opening braces but only {close_braces} closing braces. "
+                    f"Original error: {first_error}. "
+                    f"This may indicate the LLM response was cut off mid-generation. "
+                    f"Check max_tokens setting or API timeout configuration."
+                )
     
     # Strategy 2: Try extracting from markdown code block
     # Sometimes LLMs wrap JSON in ```json ... ```
@@ -166,6 +182,20 @@ def parse_llm_json_response(response: str) -> Tuple[Dict[str, Any], str]:
         try:
             return json.loads(sanitized), ""
         except json.JSONDecodeError as e:
+            # Check again for truncation after sanitization
+            if "Unterminated string" in str(e) or "Expecting" in str(e):
+                open_braces = sanitized.count('{')
+                close_braces = sanitized.count('}')
+                
+                if open_braces > close_braces:
+                    return None, (
+                        f"Response appears to be truncated. "
+                        f"Found {open_braces} opening braces but only {close_braces} closing braces. "
+                        f"Original error: {first_error}. "
+                        f"After sanitization: {str(e)}. "
+                        f"LLM response was likely cut off mid-generation."
+                    )
+            
             # Sanitization didn't help
             return None, (
                 f"JSON parsing failed even after sanitization. "

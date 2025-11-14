@@ -32,6 +32,7 @@ class OpenRouterProvider(BaseLLMProvider):
                 - max_retries: Number of retry attempts (default: 3)
                 - retry_delay_seconds: Delay between full retry cycles (default: 5)
                 - timeout_seconds: Request timeout in seconds (default: 300)
+                - max_tokens: Maximum tokens in response (default: 4096)
         
         Environment Variables:
             OPENROUTER_API_KEY: Required API key for OpenRouter
@@ -45,6 +46,7 @@ class OpenRouterProvider(BaseLLMProvider):
         self.max_retries = config.get("max_retries", 3)
         self.retry_delay = config.get("retry_delay_seconds", 5)
         self.timeout = config.get("timeout_seconds", 300)
+        self.max_tokens = config.get("max_tokens", 4096)
         
         # Initialize OpenAI-compatible client
         api_key = os.getenv("OPENROUTER_API_KEY")
@@ -162,6 +164,10 @@ class OpenRouterProvider(BaseLLMProvider):
         Raises:
             Exception: If the query fails
         """
+        # Set default max_tokens if not provided
+        if 'max_tokens' not in kwargs:
+            kwargs['max_tokens'] = self.max_tokens
+        
         completion = self.client.chat.completions.create(
             model=model_name,
             messages=messages,
@@ -172,9 +178,17 @@ class OpenRouterProvider(BaseLLMProvider):
         if not completion.choices:
             raise RuntimeError(f"Model {model_name} returned empty response")
         
-        response = completion.choices[0].message.content
+        choice = completion.choices[0]
+        response = choice.message.content
         if not response:
             raise RuntimeError(f"Model {model_name} returned None response")
+        
+        # Check if response was truncated due to max_tokens
+        finish_reason = getattr(choice, 'finish_reason', None)
+        if finish_reason == 'length':
+            print(f"  ⚠️  Warning: Model response was truncated due to max_tokens limit")
+            print(f"  Current max_tokens: {kwargs.get('max_tokens', 'unknown')}")
+            print(f"  Consider increasing max_tokens in config if responses are incomplete")
             
         return response
     

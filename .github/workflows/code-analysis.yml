@@ -68,7 +68,7 @@ jobs:
           SUBFOLDER: ${{ github.event.inputs.subfolder || '.' }}
         with:
           args: >
-            -Dsonar.projectKey=${{ github.event.repository.name }}
+            -Dsonar.projectKey=${{ github.event.repository.name }}-${{ github.event.inputs.subfolder == '.' && 'root' || github.event.inputs.subfolder }}
             -Dsonar.sources=${{ github.event.inputs.subfolder == '.' && '.' || github.event.inputs.subfolder }}
             -Dsonar.exclusions=_AutoTriageScripts/**
             -Dsonar.scm.provider=git
@@ -78,7 +78,13 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
-          PROJECT_KEY="${{ github.event.repository.name }}"
+          SUBFOLDER="${{ github.event.inputs.subfolder || '.' }}"
+          if [ "$SUBFOLDER" == "." ]; then
+            PROJECT_KEY="${{ github.event.repository.name }}-root"
+          else
+            PROJECT_KEY="${{ github.event.repository.name }}-${SUBFOLDER}"
+          fi
+          echo "Using SonarQube project key: $PROJECT_KEY"
 
           # Get the task ID from the scanner's report file (created at repo root)
           if [ ! -f ".scannerwork/report-task.txt" ]; then

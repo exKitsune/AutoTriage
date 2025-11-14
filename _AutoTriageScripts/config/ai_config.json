@@ -4,7 +4,7 @@
       "api_base": "https://openrouter.ai/api/v1",
       "models": {
         "default": "qwen/qwen3-30b-a3b:free",
-        "backup": "openrouter/polaris-alpha"
+        "backup": "openai/gpt-oss-20b:free"
       }
     }
   },

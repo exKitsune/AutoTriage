@@ -15,3 +15,10 @@ Valid response format:
 
 Do NOT write anything before or after the JSON. Do NOT explain your reasoning outside the optional 'reasoning' field. Just return the JSON tool call.
 
+JSON ESCAPING RULES - VERY IMPORTANT:
+- In JSON strings, backslashes MUST be escaped: use \\ for a single backslash
+- For regex patterns: use \\\\ to represent \\ in the pattern (e.g., "pattern\\\\.txt" for pattern\.txt)
+- For file paths: use forward slashes (/) OR double-escape backslashes (\\\\)
+- Valid JSON escapes ONLY: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
+- Example: Instead of "grep 'file\\.txt'", write "grep 'file\\\\.txt'"
+

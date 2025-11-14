@@ -12,6 +12,7 @@ from llm_client import get_ai_client, query_model
 from tool_executor import ToolExecutor
 from prompt_formatter import format_tools_for_prompt
 from tools import get_all_tool_classes
+from json_sanitizer import parse_llm_json_response
 
 class AnalysisState(Enum):
     """States that the analysis can be in."""
@@ -267,8 +268,22 @@ class AnalysisAgent:
                     config=self.config
                 )
                 
-                # Try to parse as JSON tool call
-                tool_call = json.loads(response.strip())
+                # Try to parse as JSON tool call using sanitizer
+                tool_call, parse_error = parse_llm_json_response(response)
+                
+                # Check if parsing failed
+                if tool_call is None:
+                    print(f"  ❌ ERROR: Failed to parse LLM response as JSON")
+                    print(f"  Parse error: {parse_error}")
+                    print(f"  Response preview: {response[:200]}...")
+                    fallback = self._create_fallback_response(
+                        f"Failed to parse JSON response: {parse_error}",
+                        response
+                    )
+                    # Include conversation history for debugging
+                    fallback["_conversation_history"] = conversation_history
+                    fallback["_final_message_count"] = len(messages)
+                    return fallback
                 
                 # Validate it has the right structure
                 if not isinstance(tool_call, dict) or "tool" not in tool_call:
@@ -443,8 +458,9 @@ class AnalysisAgent:
                 })
                 
             except json.JSONDecodeError as e:
-                # Response is not JSON - treat as malformed
-                print(f"  ❌ ERROR: LLM response is not valid JSON")
+                # This should not happen anymore since we use parse_llm_json_response
+                # But kept for backward compatibility in case of unexpected errors
+                print(f"  ❌ ERROR: Unexpected JSON parsing error")
                 print(f"  JSON Error: {str(e)}")
                 print(f"  Full Response (length: {len(response)}):")
                 print(f"  {'-'*60}")
@@ -461,15 +477,15 @@ class AnalysisAgent:
                 conversation_history.append({
                     "iteration": iteration + 1,
                     "ai_response": response,
-                    "error": "JSON parsing failed",
+                    "error": "Unexpected JSON parsing error",
                     "json_error": str(e),
                     "tool_called": None,
                     "tool_parameters": None,
-                    "tool_result": {"error": "LLM response was not valid JSON"}
+                    "tool_result": {"error": "Unexpected JSON parsing error"}
                 })
                 
                 fallback = self._create_fallback_response(
-                    "LLM response was not valid JSON",
+                    f"Unexpected JSON parsing error: {str(e)}",
                     response
                 )
                 # Include conversation history for debugging
@@ -519,7 +535,10 @@ class AnalysisAgent:
                 config=self.config
             )
             
-            tool_call = json.loads(response.strip())
+            tool_call, parse_error = parse_llm_json_response(response)
+            if tool_call is None:
+                raise ValueError(f"Failed to parse forced conclusion: {parse_error}")
+            
             if tool_call.get("tool") == "provide_analysis":
                 result = tool_call.get("parameters", self._create_fallback_response("Max iterations"))
                 # Add accumulated reasoning
